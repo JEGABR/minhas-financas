@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minhas Finanças — Painel Pessoal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-name">Minhas Finanças</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a href="#visao-geral" class="nav-item active" data-tab="all">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Visão Geral</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-card">
+        <div class="sidebar-card-header">
+          <span>Gerenciar Dados</span>
+        </div>
+        <p>Todos os dados ficam salvos localmente no seu computador.</p>
+        <button id="btnResetAll" class="btn-subtle btn-danger-outline">Zerar todos os dados</button>
+      </div>
+
+      <!-- Perfil com opção de alterar o nome -->
+      <div class="user-profile">
+        <div class="avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <div class="user-name-row">
+            <strong id="userNameDisplay">Gabriel</strong>
+            <button id="btnEditUserName" class="btn-edit-inline" title="Mudar seu nome">✏️</button>
+          </div>
+          <span>Controle Pessoal</span>
+        </div>
+      </div>
+
+      <div id="userNameEditBox" class="name-edit-box hidden">
+        <input type="text" id="userNameInput" class="input-control input-sm" placeholder="Digite seu nome..." maxlength="28" />
+        <div class="name-edit-actions">
+          <button type="button" id="btnCancelUserName" class="btn-subtle btn-xs">Cancelar</button>
+          <button type="button" id="btnSaveUserName" class="btn-primary btn-xs">Salvar</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div>
+          <h1 class="page-title" id="welcomeTitle">Olá, Gabriel 👋</h1>
+          <p class="page-subtitle" id="currentPeriodSubtitle">Acompanhamento mensal de receitas, despesas e parcelamentos.</p>
+        </div>
+
+        <div class="header-actions">
+          <div class="period-picker">
+            <button id="btnPrevMonth" class="btn-icon-nav" title="Mês anterior">◀</button>
+            <select id="monthSelector" class="select-control" aria-label="Selecionar mês">
+              <option value="all">Todos os meses</option>
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10" selected>Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+            <select id="yearSelector" class="select-control" aria-label="Selecionar ano"></select>
+            <button id="btnNextMonth" class="btn-icon-nav" title="Próximo mês">▶</button>
+          </div>
+
+          <button id="btnThemeToggle" class="btn-icon" title="Alternar tema claro/escuro">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
+
+          <button id="btnOpenModal" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Nova Transação</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- KPI Cards -->
+      <section class="kpi-grid" id="visao-geral">
+        <article class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-label">Saldo Acumulado Geral</span>
+            <span class="kpi-icon kpi-icon-neutral">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value" id="kpiTotalBalance">R$ 0,00</div>
+          <div class="kpi-trend">
+            <span>Soma de todas as receitas menos despesas</span>
+          </div>
+        </article>
+
+        <article class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-label">Receitas no Período</span>
+            <span class="kpi-icon kpi-icon-positive">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value positive-text" id="kpiIncome">R$ 0,00</div>
+          <div class="kpi-trend" id="kpiIncomeCount">
+            <span>0 entradas registradas</span>
+          </div>
+        </article>
+
+        <article class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-label">Despesas no Período</span>
+            <span class="kpi-icon kpi-icon-negative">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value negative-text" id="kpiExpenses">R$ 0,00</div>
+          <div class="kpi-trend" id="kpiExpenseSubtext">
+            <span>0 saídas registradas</span>
+          </div>
+        </article>
+
+        <article class="kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-label">Balanço do Período</span>
+            <span class="kpi-icon kpi-icon-accent">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value" id="kpiSavingsAmount">R$ 0,00</div>
+          <div class="kpi-trend" id="kpiSavingsRate">
+            <span>Taxa de economia: 0%</span>
+          </div>
+        </article>
+      </section>
+
+      <!-- Charts Row -->
+      <section class="charts-grid" id="chartsSection">
+        <div class="panel chart-panel">
+          <div class="panel-header">
+            <div>
+              <h2 id="cashflowChartTitle">Fluxo de Caixa Anual (Janeiro a Dezembro)</h2>
+              <p class="panel-subtitle">Receitas vs. Despesas em todos os meses do ano selecionado</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><i class="dot dot-income"></i> Receitas</span>
+              <span class="legend-item"><i class="dot dot-expense"></i> Despesas</span>
+            </div>
+          </div>
+          <div class="cashflow-chart-container" id="cashflowChart"></div>
+        </div>
+
+        <div class="panel category-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Gastos por Categoria</h2>
+              <p class="panel-subtitle">Distribuição das despesas no período selecionado</p>
+            </div>
+          </div>
+          <div id="categoryBreakdown" class="category-list"></div>
+        </div>
+      </section>
+
+      <!-- Parcelamentos Ativos Section -->
+      <section class="panel" id="parcelamentos">
+        <div class="panel-header">
+          <div>
+            <h2>Parcelamentos Ativos no Período</h2>
+            <p class="panel-subtitle">Acompanhamento de parcelas deste mês/ano com barra de progresso e edição</p>
+          </div>
+        </div>
+        <div class="cards-list" id="installmentsSummaryList"></div>
+      </section>
+
+      <!-- Transações / Contas Section -->
+      <section class="panel transactions-panel" id="transacoes">
+        <div class="panel-header transactions-header">
+          <div>
+            <h2>Transações e Contas do Período</h2>
+            <p class="panel-subtitle">Todas as contas, receitas, gastos à vista e parcelas (clique em ✏️ para editar)</p>
+          </div>
+          <div class="transactions-filters">
+            <input type="search" id="searchInput" class="input-control" placeholder="Buscar descrição ou banco..." />
+            <select id="bankFilter" class="select-control">
+              <option value="all">Todos os bancos</option>
+            </select>
+            <select id="categoryFilter" class="select-control">
+              <option value="all">Todas as categorias</option>
+              <option value="Alimentação">Alimentação</option>
+              <option value="Moradia">Moradia</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Assinaturas">Assinaturas & Serviços</option>
+              <option value="Lazer">Lazer & Saúde</option>
+              <option value="Educação">Educação</option>
+              <option value="Compras">Compras</option>
+              <option value="Outros">Outros</option>
+              <option value="Receita">Receitas</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="cards-list" id="transactionsListContainer"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: Nova / Editar Transação e Conta -->
+  <div class="modal-backdrop hidden" id="transactionModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">Adicionar Nova Transação</h3>
+        <button id="btnCloseModal" class="btn-icon-sm" type="button">✕</button>
+      </div>
+      <form id="transactionForm" class="modal-form">
+        <input type="hidden" id="editingTxId" value="" />
+
+        <div class="form-group">
+          <label for="txDescription">Descrição / Nome da Conta</label>
+          <input type="text" id="txDescription" class="input-control" placeholder="Ex.: Notebook, Luz, Supermercado, Salário..." required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="txAmount" id="txAmountLabel">Valor (R$)</label>
+            <input type="number" id="txAmount" class="input-control" step="0.01" min="0.01" placeholder="0,00" required />
+          </div>
+          <div class="form-group">
+            <label for="txType">Tipo</label>
+            <select id="txType" class="select-control">
+              <option value="expense">Despesa (-)</option>
+              <option value="income">Receita (+)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- À vista / Parcelado Toggle -->
+        <div class="form-group" id="paymentModeGroup">
+          <label>Forma de Pagamento / Lançamento</label>
+          <div class="payment-mode-toggle">
+            <button type="button" id="btnModeAvista" class="mode-btn active">À vista (1x)</button>
+            <button type="button" id="btnModeParcelado" class="mode-btn">Parcelado</button>
+          </div>
+        </div>
+
+        <!-- Campos extras quando Parcelado estiver ativo -->
+        <div id="installmentFields" class="installment-box hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="txInstallments">Quantas vezes (Parcelas)</label>
+              <input type="number" id="txInstallments" class="input-control" min="2" max="120" value="2" />
+            </div>
+            <div class="form-group">
+              <label for="txValueMode">O valor digitado acima é:</label>
+              <select id="txValueMode" class="select-control">
+                <option value="total">Valor Total (dividir pelas parcelas)</option>
+                <option value="parcel">Valor de cada parcela</option>
+              </select>
+            </div>
+          </div>
+          <div class="installment-preview" id="installmentPreview">
+            2x de R$ 0,00 (Total: R$ 0,00)
+          </div>
+        </div>
+
+        <!-- Opção ao editar uma parcela existente -->
+        <div id="editScopeBox" class="installment-box hidden">
+          <label for="txEditScope">Este item faz parte de um parcelamento. Como deseja aplicar a edição?</label>
+          <select id="txEditScope" class="select-control">
+            <option value="single">Atualizar apenas a parcela deste mês</option>
+            <option value="all">Atualizar nome, valor, banco e categoria em TODAS as parcelas</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="txCategory">Categoria</label>
+            <select id="txCategory" class="select-control">
+              <option value="Alimentação">Alimentação</option>
+              <option value="Moradia">Moradia</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Assinaturas">Assinaturas & Serviços</option>
+              <option value="Lazer">Lazer & Saúde</option>
+              <option value="Educação">Educação</option>
+              <option value="Compras">Compras</option>
+              <option value="Outros">Outros</option>
+              <option value="Receita">Receita</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="txAccount">Conta / Banco</label>
+            <select id="txAccount" class="select-control">
+              <option value="Nubank">Nubank</option>
+              <option value="Itaú">Itaú</option>
+              <option value="Bradesco">Bradesco</option>
+              <option value="Banco do Brasil">Banco do Brasil</option>
+              <option value="Caixa Econômica">Caixa Econômica</option>
+              <option value="Santander">Santander</option>
+              <option value="Banco Inter">Banco Inter</option>
+              <option value="C6 Bank">C6 Bank</option>
+              <option value="BTG Pactual">BTG Pactual</option>
+              <option value="PicPay">PicPay</option>
+              <option value="Mercado Pago">Mercado Pago</option>
+              <option value="Sicredi">Sicredi</option>
+              <option value="Sicoob">Sicoob</option>
+              <option value="XP Investimentos">XP Investimentos</option>
+              <option value="Neon">Neon</option>
+              <option value="PagBank">PagBank</option>
+              <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
+              <option value="__custom__">+ Editar / Digitar outro banco ou conta...</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Campo extra caso queira digitar/editar o nome da Conta/Banco -->
+        <div id="customAccountGroup" class="form-group hidden">
+          <label for="txCustomAccount">Digite o nome da Conta / Banco personalizado</label>
+          <input type="text" id="txCustomAccount" class="input-control" placeholder="Ex.: Cartão Porto Seguro, Conta Conjunta, XP Visa..." />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="txStartMonth" id="txStartMonthLabel">Mês do Lançamento</label>
+            <select id="txStartMonth" class="select-control">
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="txStartYear">Ano</label>
+            <input type="number" id="txStartYear" class="input-control" min="2020" max="2050" value="2026" />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="btnCancelModal" class="btn-subtle">Cancelar</button>
+          <button type="submit" id="btnSubmitTx" class="btn-primary">Salvar Transação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
