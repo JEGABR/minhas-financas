@@ -37,10 +37,15 @@
 
       <div class="sidebar-card">
         <div class="sidebar-card-header">
-          <span>Gerenciar Dados</span>
+          <span>Backup & Dados (Entre PCs)</span>
         </div>
-        <p>Todos os dados ficam salvos localmente no seu computador.</p>
-        <button id="btnResetAll" class="btn-subtle btn-danger-outline">Zerar todos os dados</button>
+        <p>Exporte seus dados para levar para outro PC ou importe um backup salvo.</p>
+        <div class="backup-actions">
+          <button type="button" id="btnExportData" class="btn-subtle btn-backup">📥 Exportar Backup</button>
+          <button type="button" id="btnImportData" class="btn-subtle btn-backup">📤 Importar Backup</button>
+          <input type="file" id="importFileInput" accept=".json" class="hidden" />
+        </div>
+        <button type="button" id="btnResetAll" class="btn-subtle btn-danger-outline">Zerar todos os dados</button>
       </div>
 
       <!-- Perfil com opção de alterar o nome -->

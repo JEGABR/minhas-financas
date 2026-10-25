@@ -145,6 +145,24 @@ body {
   margin-bottom: 10px;
 }
 
+.backup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.btn-backup {
+  width: 100%;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: var(--accent-primary) !important;
+  font-weight: 600 !important;
+}
+
+.btn-backup:hover {
+  background: rgba(16, 185, 129, 0.12) !important;
+}
+
 .btn-danger-outline {
   border-color: rgba(244, 63, 94, 0.35) !important;
   color: var(--danger) !important;

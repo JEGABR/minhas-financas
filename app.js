@@ -938,6 +938,100 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('transactionsListContainer').addEventListener('click', handleCardActionClick);
   document.getElementById('tabFilteredListContainer').addEventListener('click', handleCardActionClick);
 
+  // Exportar e Importar Backup (transferir dados de um PC para outro)
+  document.getElementById('btnExportData').addEventListener('click', () => {
+    const backupPayload = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      userName,
+      customBanks,
+      transactions
+    };
+
+    const jsonString = JSON.stringify(backupPayload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const dateStr = new Date().toISOString().slice(0, 10);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-minhas-financas-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showAgentFeedback(
+      `📥 <strong>Backup exportado com sucesso!</strong> Basta enviar o arquivo <code>backup-minhas-financas-${dateStr}.json</code> para o seu outro PC e clicar em "Importar Backup".`,
+      false
+    );
+  });
+
+  const importFileInput = document.getElementById('importFileInput');
+  document.getElementById('btnImportData').addEventListener('click', () => {
+    importFileInput.value = '';
+    importFileInput.click();
+  });
+
+  importFileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        const importedTx = Array.isArray(parsed) ? parsed : parsed.transactions;
+
+        if (!Array.isArray(importedTx)) {
+          alert('O arquivo selecionado não é um backup válido do Minhas Finanças.');
+          return;
+        }
+
+        if (parsed.userName && typeof parsed.userName === 'string') {
+          userName = parsed.userName;
+          localStorage.setItem(USER_NAME_KEY, userName);
+          renderUserName();
+        }
+
+        if (Array.isArray(parsed.customBanks)) {
+          parsed.customBanks.forEach((b) => {
+            if (!customBanks.includes(b)) customBanks.push(b);
+          });
+          saveCustomBanks();
+        }
+
+        if (transactions.length > 0) {
+          const replaceAll = confirm(
+            `O arquivo contém ${importedTx.length} lançamento(s).\n\nClique em OK para SUBSTITUIR os dados atuais pelos dados do backup, ou em Cancelar para JUNTAR (mesclar) os dados do backup com os atuais.`
+          );
+          if (replaceAll) {
+            transactions = importedTx;
+          } else {
+            const existingIds = new Set(transactions.map((t) => t.id));
+            importedTx.forEach((t) => {
+              if (!existingIds.has(t.id)) {
+                transactions.push(t);
+              }
+            });
+          }
+        } else {
+          transactions = importedTx;
+        }
+
+        saveTransactions();
+        refreshDashboard();
+        showAgentFeedback(
+          `📤 <strong>Backup importado com sucesso!</strong> ${importedTx.length} lançamento(s) foram carregados neste computador.`,
+          false
+        );
+      } catch (err) {
+        alert('Erro ao ler o arquivo de backup: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+
   // Botão Zerar Todos os Dados
   document.getElementById('btnResetAll').addEventListener('click', () => {
     if (confirm('Tem certeza que deseja zerar todas as transações e deixar todos os saldos em R$ 0,00?')) {
