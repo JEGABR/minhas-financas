@@ -1338,3 +1338,230 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Novos estilos: Filtro Receita/Despesa, Seleção Múltipla e Central Quitar Dívidas */
+.filter-controls-grid-7 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.form-group-search-span {
+  grid-column: span 3;
+}
+
+@media (max-width: 900px) {
+  .form-group-search-span {
+    grid-column: span 2;
+  }
+}
+
+.parcelamentos-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-highlight-payoff {
+  border-color: rgba(99, 102, 241, 0.45) !important;
+  background: rgba(99, 102, 241, 0.12) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+.btn-highlight-payoff:hover {
+  background: rgba(99, 102, 241, 0.22) !important;
+  border-color: var(--accent-indigo) !important;
+}
+
+.batch-pay-bar {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.09), rgba(99, 102, 241, 0.09));
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.batch-pay-bar-large {
+  padding: 14px 16px;
+  border-width: 1.5px;
+}
+
+.batch-pay-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.batch-quick-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.batch-pay-info {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.batch-pay-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.batch-pay-total {
+  font-size: 0.96rem;
+  color: var(--accent-primary);
+  background: var(--bg-surface);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.tx-select-chk-wrap {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tx-select-chk,
+.debt-group-chk,
+.debt-pill-chk {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.tx-card.selected-for-pay {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);
+}
+
+.kpi-card-highlight {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: linear-gradient(160deg, var(--bg-surface), rgba(16, 185, 129, 0.06));
+}
+
+/* Central Quitar Dívidas — Cartões de Contas Parceladas Agrupadas */
+.debt-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.debt-group-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.debt-group-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.debt-group-card.debt-selected {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);
+}
+
+.debt-group-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.debt-group-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.debt-group-name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.debt-group-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.debt-stat-pill {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 115px;
+}
+
+.debt-stat-pill small {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.debt-stat-pill strong {
+  font-size: 0.9rem;
+}
+
+.debt-parcels-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.debt-parcel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s;
+}
+
+.debt-parcel-chip:hover {
+  border-color: var(--accent-indigo);
+}
+
+.debt-parcel-chip.chip-paid {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--accent-primary);
+}
+
+.debt-parcel-chip.chip-selected {
+  border-color: var(--accent-primary);
+  background: rgba(16, 185, 129, 0.16);
+  font-weight: 600;
+}

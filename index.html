@@ -29,6 +29,10 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
           <span>Visão Geral</span>
         </a>
+        <a href="#aba-quitar" class="nav-item" data-view="quitar-dividas">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span>Quitar Dívidas</span>
+        </a>
         <a href="#aba-filtros" class="nav-item" data-view="filtros">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           <span>Filtros & Contas</span>
@@ -260,13 +264,39 @@
           <div class="panel-header chart-header-wrap">
             <div>
               <h2>Parcelamentos no Período</h2>
-              <p class="panel-subtitle">Clique em qualquer parcela para ver todas as vezes, simular adiantamento ou quitar tudo</p>
+              <p class="panel-subtitle">Marque várias dívidas abaixo para pagar juntas ou clique em uma parcela para ver todas as vezes</p>
             </div>
-            <label class="toggle-paid-filter">
-              <input type="checkbox" id="chkHidePaidInstallments" />
-              <span>Ocultar parcelas já pagas</span>
-            </label>
+            <div class="parcelamentos-header-actions">
+              <button type="button" id="btnGoToPayoffTab" class="btn-subtle btn-highlight-payoff">
+                💳 Central Quitar Dívidas (Todas as Contas)
+              </button>
+              <label class="toggle-paid-filter">
+                <input type="checkbox" id="chkHidePaidInstallments" />
+                <span>Ocultar parcelas já pagas</span>
+              </label>
+            </div>
           </div>
+
+          <!-- Barra para selecionar e pagar mais de uma dívida direto no período -->
+          <div class="batch-pay-bar" id="periodBatchPayBar">
+            <div class="batch-pay-left">
+              <div class="batch-quick-btns">
+                <button type="button" id="btnSelectAllPeriodInst" class="btn-icon-sm">Selecionar pendentes do período</button>
+                <button type="button" id="btnClearPeriodInst" class="btn-icon-sm">Limpar seleção</button>
+              </div>
+              <span id="periodSelectedInfoText" class="batch-pay-info">Marque a caixinha em 1 ou mais dívidas abaixo para pagar juntas</span>
+            </div>
+            <div class="batch-pay-right">
+              <strong id="periodSelectedTotalAmount" class="batch-pay-total">Total selecionado: R$ 0,00</strong>
+              <select id="periodBatchAdvanceMode" class="select-control input-sm">
+                <option value="mark_paid">Marcar como Paga (mantém no mês)</option>
+                <option value="move_to_current">Adiantar para o mês atual</option>
+                <option value="remove_paid">Quitar e remover da lista</option>
+              </select>
+              <button type="button" id="btnPayPeriodSelected" class="btn-primary btn-xs">✅ Pagar Dívidas Selecionadas</button>
+            </div>
+          </div>
+
           <div class="cards-list" id="installmentsSummaryList"></div>
         </section>
 
@@ -279,6 +309,11 @@
             </div>
             <div class="transactions-filters">
               <input type="search" id="searchInput" class="input-control" placeholder="Buscar descrição ou banco..." />
+              <select id="typeFilter" class="select-control">
+                <option value="all">Receitas e Despesas</option>
+                <option value="income">Somente Receitas (+)</option>
+                <option value="expense">Somente Despesas (-)</option>
+              </select>
               <select id="bankFilter" class="select-control">
                 <option value="all">Todos os bancos</option>
               </select>
@@ -302,7 +337,111 @@
       </div>
 
       <!-- ==========================================
-           ABA 2: FILTROS & CONTAS (com Saldo Acumulado Geral aqui!)
+           ABA 2: CENTRAL DE QUITAÇÃO DE DÍVIDAS (CONTAS PARCELADAS)
+           ========================================== -->
+      <div id="viewQuitarDividas" class="view-container hidden">
+        <!-- Cartões de Resumo Geral das Dívidas Parceladas -->
+        <section class="kpi-grid">
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Contas Parceladas Ativas</span>
+              <span class="kpi-icon kpi-icon-neutral">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value" id="payoffKpiActiveCount">0 dívidas</div>
+            <div class="kpi-trend" id="payoffKpiActiveSub">
+              <span>0 parcelas pendentes no total</span>
+            </div>
+          </article>
+
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Total Já Pago / Adiantado</span>
+              <span class="kpi-icon kpi-icon-positive">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value positive-text" id="payoffKpiTotalPaid">R$ 0,00</div>
+            <div class="kpi-trend" id="payoffKpiPaidSub">
+              <span>0 parcelas já quitadas</span>
+            </div>
+          </article>
+
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Falta Quitar (Todas as Dívidas)</span>
+              <span class="kpi-icon kpi-icon-negative">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value negative-text" id="payoffKpiTotalRemaining">R$ 0,00</div>
+            <div class="kpi-trend" id="payoffKpiRemainingSub">
+              <span>Soma restante de todos os parcelamentos</span>
+            </div>
+          </article>
+
+          <article class="kpi-card kpi-card-highlight">
+            <div class="kpi-top">
+              <span class="kpi-label">Total Selecionado para Quitar</span>
+              <span class="kpi-icon kpi-icon-accent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value positive-text" id="payoffKpiSelectedTotal">R$ 0,00</div>
+            <div class="kpi-trend" id="payoffKpiSelectedSub">
+              <span>0 dívidas / 0 parcelas marcadas</span>
+            </div>
+          </article>
+        </section>
+
+        <!-- Painel de Quitação de Múltiplas Dívidas -->
+        <section class="panel">
+          <div class="panel-header chart-header-wrap">
+            <div>
+              <h2>Quitar Dívidas — Contas Parceladas</h2>
+              <p class="panel-subtitle">Selecione uma ou mais dívidas parceladas abaixo (ou escolha quais parcelas de cada conta) para somar e pagar de uma só vez</p>
+            </div>
+            <div class="transactions-filters">
+              <input type="search" id="payoffSearchInput" class="input-control" placeholder="Buscar dívida ou banco..." />
+              <select id="payoffBankFilter" class="select-control">
+                <option value="all">Todos os bancos</option>
+              </select>
+              <select id="payoffStatusFilter" class="select-control">
+                <option value="pending">Somente com parcelas pendentes</option>
+                <option value="all">Todas (incluindo 100% quitadas)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Barra Fixa de Simulação e Pagamento em Lote -->
+          <div class="batch-pay-bar batch-pay-bar-large">
+            <div class="batch-pay-left">
+              <div class="batch-quick-btns">
+                <button type="button" id="btnPayoffSelectAllRemaining" class="btn-icon-sm">Selecionar tudo para Quitar Geral</button>
+                <button type="button" id="btnPayoffSelectNextInstallmentEach" class="btn-icon-sm">Selecionar 1ª parcela pendente de cada dívida</button>
+                <button type="button" id="btnPayoffClearSelection" class="btn-icon-sm">Limpar seleção</button>
+              </div>
+              <span id="payoffBarSummaryText" class="batch-pay-info">Marque as dívidas ou parcelas abaixo para simular e quitar juntas</span>
+            </div>
+            <div class="batch-pay-right">
+              <strong id="payoffBarTotalValue" class="batch-pay-total">Valor p/ pagar: R$ 0,00</strong>
+              <select id="payoffBatchMode" class="select-control input-sm">
+                <option value="mark_paid">Marcar como Paga (mantém nos meses)</option>
+                <option value="move_to_current">Adiantar e puxar para o mês atual</option>
+                <option value="remove_paid">Quitar e remover parcelas da lista</option>
+              </select>
+              <button type="button" id="btnExecuteMultiPayoff" class="btn-primary">✅ Quitar / Pagar Selecionadas</button>
+            </div>
+          </div>
+
+          <!-- Lista de Contas Parceladas Agrupadas -->
+          <div class="debt-groups-list" id="payoffDebtsContainer"></div>
+        </section>
+      </div>
+
+      <!-- ==========================================
+           ABA 3: FILTROS & CONTAS (com Saldo Acumulado Geral + Filtro Receita/Despesa)
            ========================================== -->
       <div id="viewFiltros" class="view-container hidden">
         <!-- Painel de Filtros Avançados -->
@@ -310,12 +449,21 @@
           <div class="panel-header">
             <div>
               <h2>Filtrar Transações e Contas</h2>
-              <p class="panel-subtitle">Selecione mês, ano, banco, categoria ou modalidade para calcular Receitas, Despesas e Balanço exatos do filtro</p>
+              <p class="panel-subtitle">Selecione tipo (receita ou despesa), mês, ano, banco, categoria ou modalidade para calcular os valores exatos do filtro</p>
             </div>
             <button type="button" id="btnClearTabFilters" class="btn-subtle">Limpar Filtros</button>
           </div>
 
-          <div class="filter-controls-grid">
+          <div class="filter-controls-grid filter-controls-grid-7">
+            <div class="form-group">
+              <label for="tabFilterType">Tipo (Receita / Despesa)</label>
+              <select id="tabFilterType" class="select-control">
+                <option value="all">Todas (Receitas + Despesas)</option>
+                <option value="income">Somente Receitas (+)</option>
+                <option value="expense">Somente Despesas (-)</option>
+              </select>
+            </div>
+
             <div class="form-group">
               <label for="tabFilterMonth">Mês</label>
               <select id="tabFilterMonth" class="select-control">
@@ -372,7 +520,7 @@
               </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group form-group-search-span">
               <label for="tabFilterSearch">Busca por Nome / Conta</label>
               <input type="search" id="tabFilterSearch" class="input-control" placeholder="Ex.: Geladeira, Luz, Salário..." />
             </div>
@@ -436,12 +584,32 @@
 
         <!-- Lista de Transações e Contas do Filtro Aplicado -->
         <section class="panel transactions-panel">
-          <div class="panel-header">
+          <div class="panel-header chart-header-wrap">
             <div>
               <h2>Transações e Contas do Período (Filtro Aplicado)</h2>
-              <p class="panel-subtitle">Resultados filtrados conforme mês, ano, banco, categoria e busca selecionados acima</p>
+              <p class="panel-subtitle">Você também pode marcar mais de uma dívida filtrada abaixo para pagar/quitar juntas</p>
             </div>
           </div>
+
+          <div class="batch-pay-bar" id="filterTabBatchPayBar">
+            <div class="batch-pay-left">
+              <div class="batch-quick-btns">
+                <button type="button" id="btnSelectAllFilterTabInst" class="btn-icon-sm">Selecionar pendentes filtradas</button>
+                <button type="button" id="btnClearFilterTabInst" class="btn-icon-sm">Limpar seleção</button>
+              </div>
+              <span id="filterTabSelectedInfoText" class="batch-pay-info">Marque 1 ou mais dívidas na lista abaixo para pagar juntas</span>
+            </div>
+            <div class="batch-pay-right">
+              <strong id="filterTabSelectedTotalAmount" class="batch-pay-total">Total selecionado: R$ 0,00</strong>
+              <select id="filterTabBatchAdvanceMode" class="select-control input-sm">
+                <option value="mark_paid">Marcar como Paga (mantém no mês)</option>
+                <option value="move_to_current">Adiantar para o mês atual</option>
+                <option value="remove_paid">Quitar e remover da lista</option>
+              </select>
+              <button type="button" id="btnPayFilterTabSelected" class="btn-primary btn-xs">✅ Pagar Selecionadas</button>
+            </div>
+          </div>
+
           <div class="cards-list" id="tabFilteredListContainer"></div>
         </section>
       </div>
