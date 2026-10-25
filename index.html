@@ -25,9 +25,13 @@
       </div>
 
       <nav class="nav-menu">
-        <a href="#visao-geral" class="nav-item active" data-tab="all">
+        <a href="#visao-geral" class="nav-item active" data-view="visao-geral">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
           <span>Visão Geral</span>
+        </a>
+        <a href="#aba-filtros" class="nav-item" data-view="filtros">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span>Filtros & Contas</span>
         </a>
       </nav>
 
@@ -70,7 +74,7 @@
         </div>
 
         <div class="header-actions">
-          <div class="period-picker">
+          <div class="period-picker" id="topPeriodPicker">
             <button id="btnPrevMonth" class="btn-icon-nav" title="Mês anterior">◀</button>
             <select id="monthSelector" class="select-control" aria-label="Selecionar mês">
               <option value="all">Todos os meses</option>
@@ -130,128 +134,278 @@
         </div>
       </section>
 
-      <!-- KPI Cards -->
-      <section class="kpi-grid" id="visao-geral">
-        <article class="kpi-card">
-          <div class="kpi-top">
-            <span class="kpi-label">Saldo Acumulado Geral</span>
-            <span class="kpi-icon kpi-icon-neutral">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
-            </span>
-          </div>
-          <div class="kpi-value" id="kpiTotalBalance">R$ 0,00</div>
-          <div class="kpi-trend">
-            <span>Soma de todas as receitas menos despesas</span>
-          </div>
-        </article>
+      <!-- ==========================================
+           ABA 1: VISÃO GERAL
+           ========================================== -->
+      <div id="viewVisaoGeral" class="view-container">
+        <!-- KPI Cards (atualizam conforme os filtros ativos!) -->
+        <section class="kpi-grid" id="visao-geral">
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Saldo Acumulado Geral</span>
+              <span class="kpi-icon kpi-icon-neutral">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value" id="kpiTotalBalance">R$ 0,00</div>
+            <div class="kpi-trend" id="kpiTotalSubtext">
+              <span>Soma de todas as receitas menos despesas</span>
+            </div>
+          </article>
 
-        <article class="kpi-card">
-          <div class="kpi-top">
-            <span class="kpi-label">Receitas no Período</span>
-            <span class="kpi-icon kpi-icon-positive">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            </span>
-          </div>
-          <div class="kpi-value positive-text" id="kpiIncome">R$ 0,00</div>
-          <div class="kpi-trend" id="kpiIncomeCount">
-            <span>0 entradas registradas</span>
-          </div>
-        </article>
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label" id="kpiIncomeLabel">Receitas no Período</span>
+              <span class="kpi-icon kpi-icon-positive">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value positive-text" id="kpiIncome">R$ 0,00</div>
+            <div class="kpi-trend" id="kpiIncomeCount">
+              <span>0 entradas registradas</span>
+            </div>
+          </article>
 
-        <article class="kpi-card">
-          <div class="kpi-top">
-            <span class="kpi-label">Despesas no Período</span>
-            <span class="kpi-icon kpi-icon-negative">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
-            </span>
-          </div>
-          <div class="kpi-value negative-text" id="kpiExpenses">R$ 0,00</div>
-          <div class="kpi-trend" id="kpiExpenseSubtext">
-            <span>0 saídas registradas</span>
-          </div>
-        </article>
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label" id="kpiExpensesLabel">Despesas no Período</span>
+              <span class="kpi-icon kpi-icon-negative">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value negative-text" id="kpiExpenses">R$ 0,00</div>
+            <div class="kpi-trend" id="kpiExpenseSubtext">
+              <span>0 saídas registradas</span>
+            </div>
+          </article>
 
-        <article class="kpi-card">
-          <div class="kpi-top">
-            <span class="kpi-label">Balanço do Período</span>
-            <span class="kpi-icon kpi-icon-accent">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            </span>
-          </div>
-          <div class="kpi-value" id="kpiSavingsAmount">R$ 0,00</div>
-          <div class="kpi-trend" id="kpiSavingsRate">
-            <span>Taxa de economia: 0%</span>
-          </div>
-        </article>
-      </section>
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label" id="kpiBalanceLabel">Balanço do Período</span>
+              <span class="kpi-icon kpi-icon-accent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value" id="kpiSavingsAmount">R$ 0,00</div>
+            <div class="kpi-trend" id="kpiSavingsRate">
+              <span>Taxa de economia: 0%</span>
+            </div>
+          </article>
+        </section>
 
-      <!-- Charts Row -->
-      <section class="charts-grid" id="chartsSection">
-        <div class="panel chart-panel">
+        <!-- Charts Row -->
+        <section class="charts-grid" id="chartsSection">
+          <div class="panel chart-panel">
+            <div class="panel-header">
+              <div>
+                <h2 id="cashflowChartTitle">Fluxo de Caixa Anual (Janeiro a Dezembro)</h2>
+                <p class="panel-subtitle">Receitas vs. Despesas em todos os meses do ano selecionado</p>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><i class="dot dot-income"></i> Receitas</span>
+                <span class="legend-item"><i class="dot dot-expense"></i> Despesas</span>
+              </div>
+            </div>
+            <div class="cashflow-chart-container" id="cashflowChart"></div>
+          </div>
+
+          <div class="panel category-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Gastos por Categoria</h2>
+                <p class="panel-subtitle">Distribuição das despesas (conforme filtro ativo)</p>
+              </div>
+            </div>
+            <div id="categoryBreakdown" class="category-list"></div>
+          </div>
+        </section>
+
+        <!-- Parcelamentos Ativos Section -->
+        <section class="panel" id="parcelamentos">
           <div class="panel-header">
             <div>
-              <h2 id="cashflowChartTitle">Fluxo de Caixa Anual (Janeiro a Dezembro)</h2>
-              <p class="panel-subtitle">Receitas vs. Despesas em todos os meses do ano selecionado</p>
-            </div>
-            <div class="chart-legend">
-              <span class="legend-item"><i class="dot dot-income"></i> Receitas</span>
-              <span class="legend-item"><i class="dot dot-expense"></i> Despesas</span>
+              <h2>Parcelamentos Ativos no Período</h2>
+              <p class="panel-subtitle">Acompanhamento de parcelas deste mês/ano com barra de progresso e edição</p>
             </div>
           </div>
-          <div class="cashflow-chart-container" id="cashflowChart"></div>
-        </div>
+          <div class="cards-list" id="installmentsSummaryList"></div>
+        </section>
 
-        <div class="panel category-panel">
+        <!-- Transações / Contas Section -->
+        <section class="panel transactions-panel" id="transacoes">
+          <div class="panel-header transactions-header">
+            <div>
+              <h2>Transações e Contas do Período</h2>
+              <p class="panel-subtitle">Ao filtrar abaixo, os cartões de Receita, Despesa e Balanço mostram os valores do filtro aplicado</p>
+            </div>
+            <div class="transactions-filters">
+              <input type="search" id="searchInput" class="input-control" placeholder="Buscar descrição ou banco..." />
+              <select id="bankFilter" class="select-control">
+                <option value="all">Todos os bancos</option>
+              </select>
+              <select id="categoryFilter" class="select-control">
+                <option value="all">Todas as categorias</option>
+                <option value="Alimentação">Alimentação</option>
+                <option value="Moradia">Moradia</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Assinaturas">Assinaturas & Serviços</option>
+                <option value="Lazer">Lazer & Saúde</option>
+                <option value="Educação">Educação</option>
+                <option value="Compras">Compras</option>
+                <option value="Outros">Outros</option>
+                <option value="Receita">Receitas</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="cards-list" id="transactionsListContainer"></div>
+        </section>
+      </div>
+
+      <!-- ==========================================
+           ABA 2: FILTROS & CONTAS (ABA SEPARADA DE FILTRO COMPLETO)
+           ========================================== -->
+      <div id="viewFiltros" class="view-container hidden">
+        <!-- Painel de Filtros Avançados -->
+        <section class="panel filter-panel">
           <div class="panel-header">
             <div>
-              <h2>Gastos por Categoria</h2>
-              <p class="panel-subtitle">Distribuição das despesas no período selecionado</p>
+              <h2>Filtrar Transações e Contas</h2>
+              <p class="panel-subtitle">Selecione mês, ano, banco, categoria ou modalidade para calcular Receitas, Despesas e Balanço exatos do filtro</p>
+            </div>
+            <button type="button" id="btnClearTabFilters" class="btn-subtle">Limpar Filtros</button>
+          </div>
+
+          <div class="filter-controls-grid">
+            <div class="form-group">
+              <label for="tabFilterMonth">Mês</label>
+              <select id="tabFilterMonth" class="select-control">
+                <option value="all">Todos os meses</option>
+                <option value="01">Janeiro</option>
+                <option value="02">Fevereiro</option>
+                <option value="03">Março</option>
+                <option value="04">Abril</option>
+                <option value="05">Maio</option>
+                <option value="06">Junho</option>
+                <option value="07">Julho</option>
+                <option value="08">Agosto</option>
+                <option value="09">Setembro</option>
+                <option value="10" selected>Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="tabFilterYear">Ano</label>
+              <select id="tabFilterYear" class="select-control"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="tabFilterBank">Banco / Conta</label>
+              <select id="tabFilterBank" class="select-control">
+                <option value="all">Todos os bancos</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="tabFilterCategory">Categoria</label>
+              <select id="tabFilterCategory" class="select-control">
+                <option value="all">Todas as categorias</option>
+                <option value="Alimentação">Alimentação</option>
+                <option value="Moradia">Moradia</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Assinaturas">Assinaturas & Serviços</option>
+                <option value="Lazer">Lazer & Saúde</option>
+                <option value="Educação">Educação</option>
+                <option value="Compras">Compras</option>
+                <option value="Outros">Outros</option>
+                <option value="Receita">Receitas</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="tabFilterModality">Modalidade</label>
+              <select id="tabFilterModality" class="select-control">
+                <option value="all">Todas (À vista + Parcelado)</option>
+                <option value="installment">Somente Parcelados</option>
+                <option value="single">Somente À vista</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="tabFilterSearch">Busca por Nome / Conta</label>
+              <input type="search" id="tabFilterSearch" class="input-control" placeholder="Ex.: Geladeira, Luz, Salário..." />
             </div>
           </div>
-          <div id="categoryBreakdown" class="category-list"></div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Parcelamentos Ativos Section -->
-      <section class="panel" id="parcelamentos">
-        <div class="panel-header">
-          <div>
-            <h2>Parcelamentos Ativos no Período</h2>
-            <p class="panel-subtitle">Acompanhamento de parcelas deste mês/ano com barra de progresso e edição</p>
-          </div>
-        </div>
-        <div class="cards-list" id="installmentsSummaryList"></div>
-      </section>
+        <!-- Cartões de Resumo Exclusivos do Filtro Aplicado -->
+        <section class="kpi-grid">
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Itens Encontrados no Filtro</span>
+              <span class="kpi-icon kpi-icon-neutral">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value" id="tabKpiCount">0</div>
+            <div class="kpi-trend" id="tabKpiFilterSummary">
+              <span>Filtro ativo</span>
+            </div>
+          </article>
 
-      <!-- Transações / Contas Section -->
-      <section class="panel transactions-panel" id="transacoes">
-        <div class="panel-header transactions-header">
-          <div>
-            <h2>Transações e Contas do Período</h2>
-            <p class="panel-subtitle">Todas as contas, receitas, gastos à vista e parcelas (clique em ✏️ para editar)</p>
-          </div>
-          <div class="transactions-filters">
-            <input type="search" id="searchInput" class="input-control" placeholder="Buscar descrição ou banco..." />
-            <select id="bankFilter" class="select-control">
-              <option value="all">Todos os bancos</option>
-            </select>
-            <select id="categoryFilter" class="select-control">
-              <option value="all">Todas as categorias</option>
-              <option value="Alimentação">Alimentação</option>
-              <option value="Moradia">Moradia</option>
-              <option value="Transporte">Transporte</option>
-              <option value="Assinaturas">Assinaturas & Serviços</option>
-              <option value="Lazer">Lazer & Saúde</option>
-              <option value="Educação">Educação</option>
-              <option value="Compras">Compras</option>
-              <option value="Outros">Outros</option>
-              <option value="Receita">Receitas</option>
-            </select>
-          </div>
-        </div>
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Receitas (Filtro Aplicado)</span>
+              <span class="kpi-icon kpi-icon-positive">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value positive-text" id="tabKpiIncome">R$ 0,00</div>
+            <div class="kpi-trend" id="tabKpiIncomeSub">
+              <span>0 entradas no filtro</span>
+            </div>
+          </article>
 
-        <div class="cards-list" id="transactionsListContainer"></div>
-      </section>
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Despesas (Filtro Aplicado)</span>
+              <span class="kpi-icon kpi-icon-negative">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value negative-text" id="tabKpiExpenses">R$ 0,00</div>
+            <div class="kpi-trend" id="tabKpiExpenseSub">
+              <span>0 saídas no filtro</span>
+            </div>
+          </article>
+
+          <article class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Balanço do Filtro</span>
+              <span class="kpi-icon kpi-icon-accent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              </span>
+            </div>
+            <div class="kpi-value" id="tabKpiBalance">R$ 0,00</div>
+            <div class="kpi-trend" id="tabKpiSavingsRate">
+              <span>Receitas menos Despesas do filtro</span>
+            </div>
+          </article>
+        </section>
+
+        <!-- Lista de Transações e Contas do Filtro Aplicado -->
+        <section class="panel transactions-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Transações e Contas do Período (Filtro Aplicado)</h2>
+              <p class="panel-subtitle">Resultados filtrados conforme mês, ano, banco, categoria e busca selecionados acima</p>
+            </div>
+          </div>
+          <div class="cards-list" id="tabFilteredListContainer"></div>
+        </section>
+      </div>
     </main>
   </div>
 

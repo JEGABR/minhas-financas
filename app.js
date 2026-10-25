@@ -59,7 +59,6 @@ function parseAndExecuteAgentCommand(rawInput) {
 
   const lower = text.toLowerCase();
 
-  // 1. Detectar número de parcelas (ex: "em 12 vezes", "12x", "12 parcelas", "parcelado em 10")
   let installments = 1;
   let isParcelado = false;
   let matchedInstallmentStr = '';
@@ -79,15 +78,12 @@ function parseAndExecuteAgentCommand(rawInput) {
     }
   }
 
-  // Detectar se o valor informado é por parcela (ex: "10x de 250" ou "10 parcelas de R$ 200")
   const isParcelValueMode = /(?:\d{1,3})\s*(?:vezes|x|parcelas?)\s+de\s+(?:r\$\s*)?\d/i.test(text);
 
-  // 2. Remover trecho da parcela para não confundir o número de parcelas com o valor em R$
   let textWithoutInstallments = matchedInstallmentStr
     ? text.replace(matchedInstallmentStr, ' ')
     : text;
 
-  // 3. Detectar valor monetário (ex: R$ 1.200,50 | 3600 | 250,90)
   let amount = 0;
   let matchedAmountStr = '';
   const amountMatch = textWithoutInstallments.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i);
@@ -103,7 +99,6 @@ function parseAndExecuteAgentCommand(rawInput) {
     amount = parseFloat(numStr) || 0;
   }
 
-  // 4. Detectar Banco / Conta
   const bankAliases = [
     { keywords: ['nubank', 'nu'], bank: 'Nubank' },
     { keywords: ['itaú', 'itau'], bank: 'Itaú' },
@@ -133,7 +128,6 @@ function parseAndExecuteAgentCommand(rawInput) {
     }
   }
 
-  // 5. Detectar Tipo (Receita vs Despesa) e Categoria
   const isIncome = /\b(recebi|sal[áa]rio|ganhei|receita|entrada|freelance|rendimento)\b/i.test(lower);
   const type = isIncome ? 'income' : 'expense';
   let category = 'Compras';
@@ -154,7 +148,6 @@ function parseAndExecuteAgentCommand(rawInput) {
     category = 'Educação';
   }
 
-  // 6. Extrair a Descrição limpa
   let cleanDesc = textWithoutInstallments
     .replace(matchedAmountStr, ' ')
     .replace(/\b(coloque|coloca|adicione|adiciona|lan[çc]e|lan[çc]a|registre|registra|comprei|paguei|recebi|essa|esse|esta|este|uma|um|d[íi]vida|conta|gasto|despesa|compra|parcelad[oa]|dividid[oa]|avista|[àa]\s*vista|no\s+valor\s+de|valor\s+de|por|reais|real|r\$|no\s+banco|na\s+conta|no\s+cart[ãa]o|no|na|em|de|do|da|vezes|parcelas?)\b/gi, ' ');
@@ -175,7 +168,6 @@ function parseAndExecuteAgentCommand(rawInput) {
   const startMonthNum = selectedMonth === 'all' ? 10 : parseInt(selectedMonth, 10);
   const startYearNum = selectedYear;
 
-  // Se o usuário não digitou o valor na frase, abre o modal já configurado com as parcelas preenchidas!
   if (amount <= 0) {
     openNewModal();
     document.getElementById('txDescription').value = cleanDesc;
@@ -195,7 +187,6 @@ function parseAndExecuteAgentCommand(rawInput) {
     return;
   }
 
-  // Criar as transações diretamente
   lastAgentBatchIds = [];
 
   if (!isParcelado) {
@@ -309,10 +300,6 @@ function renderUserName() {
   document.getElementById('welcomeTitle').textContent = `Olá, ${cleanName} 👋`;
 }
 
-/**
- * Soma meses a um par (ano, mês 1..12) avançando anos automaticamente
- * mesmo se passar de Dezembro ou tiver mais de 12 parcelas.
- */
 function addMonthsToPeriod(startYear, startMonth, offset) {
   const zeroBasedTotal = startYear * 12 + (startMonth - 1) + offset;
   const targetYear = Math.floor(zeroBasedTotal / 12);
@@ -332,8 +319,11 @@ function formatPeriodLabel(periodKey) {
   return `${shortMo}/${yr}`;
 }
 
-function populateYearSelector() {
+function populateYearSelectors() {
   const yearSelect = document.getElementById('yearSelector');
+  const tabYearSelect = document.getElementById('tabFilterYear');
+  const currentTabYear = tabYearSelect.value || String(selectedYear);
+
   const txYears = transactions.map((t) => Number(t.year)).filter(Boolean);
   const minYear = Math.min(2025, ...txYears);
   const maxYear = Math.max(2030, selectedYear, ...txYears);
@@ -343,12 +333,19 @@ function populateYearSelector() {
     options.push(`<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`);
   }
   yearSelect.innerHTML = options.join('');
+
+  const tabOptions = [`<option value="all">Todos os anos</option>`];
+  for (let y = minYear; y <= maxYear; y++) {
+    tabOptions.push(`<option value="${y}">${y}</option>`);
+  }
+  tabYearSelect.innerHTML = tabOptions.join('');
+  tabYearSelect.value = currentTabYear;
 }
 
 function populateBankSelectors() {
   const banks = getAllBanks();
 
-  // Filtro de bancos na seção Transações
+  // Filtro de bancos na Visão Geral
   const bankFilter = document.getElementById('bankFilter');
   const currentFilterVal = bankFilter.value || 'all';
   bankFilter.innerHTML =
@@ -356,6 +353,16 @@ function populateBankSelectors() {
     banks.map((b) => `<option value="${b}">${b}</option>`).join('');
   if (banks.includes(currentFilterVal) || currentFilterVal === 'all') {
     bankFilter.value = currentFilterVal;
+  }
+
+  // Filtro de bancos na Aba Filtros & Contas
+  const tabBankFilter = document.getElementById('tabFilterBank');
+  const currentTabBankVal = tabBankFilter.value || 'all';
+  tabBankFilter.innerHTML =
+    `<option value="all">Todos os bancos</option>` +
+    banks.map((b) => `<option value="${b}">${b}</option>`).join('');
+  if (banks.includes(currentTabBankVal) || currentTabBankVal === 'all') {
+    tabBankFilter.value = currentTabBankVal;
   }
 
   // Select de bancos dentro do Modal
@@ -376,6 +383,31 @@ function getPeriodTransactions() {
     if (selectedMonth === 'all') return true;
     return t.month === selectedMonth;
   });
+}
+
+/**
+ * Retorna as transações do período na Visão Geral já com os filtros de Busca, Banco e Categoria aplicados
+ */
+function getMainFilteredTransactions() {
+  const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+  const catFilter = document.getElementById('categoryFilter').value;
+  const bankFilter = document.getElementById('bankFilter').value;
+
+  return getPeriodTransactions().filter((t) => {
+    const matchesSearch =
+      t.description.toLowerCase().includes(searchQuery) ||
+      t.account.toLowerCase().includes(searchQuery);
+    const matchesCat = catFilter === 'all' || t.category === catFilter;
+    const matchesBank = bankFilter === 'all' || t.account === bankFilter;
+    return matchesSearch && matchesCat && matchesBank;
+  });
+}
+
+function hasActiveMainFilter() {
+  const searchQuery = document.getElementById('searchInput').value.trim();
+  const catFilter = document.getElementById('categoryFilter').value;
+  const bankFilter = document.getElementById('bankFilter').value;
+  return searchQuery !== '' || catFilter !== 'all' || bankFilter !== 'all';
 }
 
 function calculateSummary(list) {
@@ -404,16 +436,23 @@ function calculateSummary(list) {
 }
 
 function renderKPIs() {
-  const periodList = getPeriodTransactions();
-  const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(periodList);
+  // Usa a lista filtrada para que Receitas, Despesas e Balanço mostrem exatamente o filtro aplicado!
+  const filteredList = getMainFilteredTransactions();
+  const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filteredList);
   const allSummary = calculateSummary(transactions);
+  const isFiltered = hasActiveMainFilter();
 
   document.getElementById('kpiTotalBalance').textContent = formatBRL(allSummary.netSavings);
+
+  document.getElementById('kpiIncomeLabel').textContent = isFiltered ? 'Receitas (Filtro Aplicado)' : 'Receitas no Período';
+  document.getElementById('kpiExpensesLabel').textContent = isFiltered ? 'Despesas (Filtro Aplicado)' : 'Despesas no Período';
+  document.getElementById('kpiBalanceLabel').textContent = isFiltered ? 'Balanço (Filtro Aplicado)' : 'Balanço do Período';
+
   document.getElementById('kpiIncome').textContent = formatBRL(income);
-  document.getElementById('kpiIncomeCount').textContent = `${incomeCount} entrada(s) no período`;
+  document.getElementById('kpiIncomeCount').textContent = `${incomeCount} entrada(s) ${isFiltered ? 'no filtro' : 'no período'}`;
 
   document.getElementById('kpiExpenses').textContent = formatBRL(expenses);
-  document.getElementById('kpiExpenseSubtext').textContent = `${expenseCount} saída(s) no período`;
+  document.getElementById('kpiExpenseSubtext').textContent = `${expenseCount} saída(s) ${isFiltered ? 'no filtro' : 'no período'}`;
 
   const savingsEl = document.getElementById('kpiSavingsAmount');
   savingsEl.textContent = formatBRL(netSavings);
@@ -461,14 +500,14 @@ function renderCashflowChart() {
 
 function renderCategoryBreakdown() {
   const container = document.getElementById('categoryBreakdown');
-  const periodList = getPeriodTransactions();
-  const { expenses, byCategory } = calculateSummary(periodList);
+  const filteredList = getMainFilteredTransactions();
+  const { expenses, byCategory } = calculateSummary(filteredList);
 
   const entries = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
   const colors = ['fill-indigo', 'fill-emerald', 'fill-amber', 'fill-danger'];
 
   if (entries.length === 0) {
-    container.innerHTML = `<p class="empty-state">Nenhuma despesa registrada neste período (R$ 0,00).</p>`;
+    container.innerHTML = `<p class="empty-state">Nenhuma despesa registrada neste período/filtro (R$ 0,00).</p>`;
     return;
   }
 
@@ -491,9 +530,6 @@ function renderCategoryBreakdown() {
     .join('');
 }
 
-/**
- * Gera o card visual com barra de progresso (usado tanto em Parcelamentos quanto em Transações / Contas)
- */
 function createTransactionCardHTML(tx) {
   const isIncome = tx.type === 'income';
   const bankColor = BANK_COLORS[tx.account] || '#6366f1';
@@ -540,12 +576,12 @@ function createTransactionCardHTML(tx) {
 
 function renderInstallmentsSummary() {
   const container = document.getElementById('installmentsSummaryList');
-  const periodList = getPeriodTransactions()
+  const periodList = getMainFilteredTransactions()
     .filter((t) => t.isInstallment)
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id);
 
   if (periodList.length === 0) {
-    container.innerHTML = `<p class="empty-state">Nenhuma parcela ativa neste período (R$ 0,00).</p>`;
+    container.innerHTML = `<p class="empty-state">Nenhuma parcela ativa neste período/filtro (R$ 0,00).</p>`;
     return;
   }
 
@@ -554,23 +590,76 @@ function renderInstallmentsSummary() {
 
 function renderTransactionsList() {
   const container = document.getElementById('transactionsListContainer');
-  const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
-  const catFilter = document.getElementById('categoryFilter').value;
-  const bankFilter = document.getElementById('bankFilter').value;
+  const filtered = getMainFilteredTransactions().sort(
+    (a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id
+  );
 
-  const filtered = getPeriodTransactions()
+  // Atualiza também os KPIs do topo e o gráfico de categorias com o filtro aplicado!
+  renderKPIs();
+  renderCategoryBreakdown();
+  renderInstallmentsSummary();
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<p class="empty-state">Nenhuma transação ou conta encontrada com este filtro (R$ 0,00).</p>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(createTransactionCardHTML).join('');
+}
+
+/**
+ * Renderiza a Aba dedicada "Filtros & Contas" (#viewFiltros)
+ */
+function renderFilterTabView() {
+  const fMonth = document.getElementById('tabFilterMonth').value;
+  const fYear = document.getElementById('tabFilterYear').value;
+  const fBank = document.getElementById('tabFilterBank').value;
+  const fCategory = document.getElementById('tabFilterCategory').value;
+  const fModality = document.getElementById('tabFilterModality').value;
+  const fSearch = document.getElementById('tabFilterSearch').value.toLowerCase().trim();
+
+  const filtered = transactions
     .filter((t) => {
-      const matchesSearch =
-        t.description.toLowerCase().includes(searchQuery) ||
-        t.account.toLowerCase().includes(searchQuery);
-      const matchesCat = catFilter === 'all' || t.category === catFilter;
-      const matchesBank = bankFilter === 'all' || t.account === bankFilter;
-      return matchesSearch && matchesCat && matchesBank;
+      if (fYear !== 'all' && String(t.year) !== String(fYear)) return false;
+      if (fMonth !== 'all' && t.month !== fMonth) return false;
+      if (fBank !== 'all' && t.account !== fBank) return false;
+      if (fCategory !== 'all' && t.category !== fCategory) return false;
+      if (fModality === 'installment' && !t.isInstallment) return false;
+      if (fModality === 'single' && t.isInstallment) return false;
+      if (
+        fSearch &&
+        !t.description.toLowerCase().includes(fSearch) &&
+        !t.account.toLowerCase().includes(fSearch) &&
+        !t.category.toLowerCase().includes(fSearch)
+      ) {
+        return false;
+      }
+      return true;
     })
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id);
 
+  const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filtered);
+
+  document.getElementById('tabKpiCount').textContent = String(filtered.length);
+  const monthLabel = fMonth === 'all' ? 'Todos os meses' : MONTH_NAMES[fMonth];
+  const yearLabel = fYear === 'all' ? 'Todos os anos' : fYear;
+  const bankLabel = fBank === 'all' ? 'Todos os bancos' : fBank;
+  document.getElementById('tabKpiFilterSummary').textContent = `${monthLabel} • ${yearLabel} • ${bankLabel}`;
+
+  document.getElementById('tabKpiIncome').textContent = formatBRL(income);
+  document.getElementById('tabKpiIncomeSub').textContent = `${incomeCount} entrada(s) no filtro`;
+
+  document.getElementById('tabKpiExpenses').textContent = formatBRL(expenses);
+  document.getElementById('tabKpiExpenseSub').textContent = `${expenseCount} saída(s) no filtro`;
+
+  const balEl = document.getElementById('tabKpiBalance');
+  balEl.textContent = formatBRL(netSavings);
+  balEl.className = `kpi-value ${netSavings > 0 ? 'positive-text' : netSavings < 0 ? 'negative-text' : ''}`;
+  document.getElementById('tabKpiSavingsRate').textContent = `Taxa de economia no filtro: ${savingsRate}%`;
+
+  const container = document.getElementById('tabFilteredListContainer');
   if (filtered.length === 0) {
-    container.innerHTML = `<p class="empty-state">Nenhuma transação ou conta cadastrada neste período (R$ 0,00).</p>`;
+    container.innerHTML = `<p class="empty-state">Nenhuma transação ou conta encontrada para os filtros selecionados (R$ 0,00).</p>`;
     return;
   }
 
@@ -596,13 +685,11 @@ function updateInstallmentPreview() {
 }
 
 function refreshDashboard() {
-  populateYearSelector();
+  populateYearSelectors();
   populateBankSelectors();
-  renderKPIs();
   renderCashflowChart();
-  renderCategoryBreakdown();
-  renderInstallmentsSummary();
   renderTransactionsList();
+  renderFilterTabView();
 }
 
 function handleCardActionClick(e) {
@@ -671,7 +758,6 @@ function openEditModal(txId) {
   document.getElementById('txStartMonth').value = tx.month;
   document.getElementById('txStartYear').value = tx.year;
 
-  // Ao editar item existente, esconde o gerador de novas parcelas e mostra escopo se for parcelado
   document.getElementById('paymentModeGroup').classList.add('hidden');
   document.getElementById('installmentFields').classList.add('hidden');
 
@@ -688,7 +774,52 @@ function openEditModal(txId) {
 /* Event Listeners */
 document.addEventListener('DOMContentLoaded', () => {
   renderUserName();
+  document.getElementById('tabFilterYear').value = String(selectedYear);
   refreshDashboard();
+
+  // Alternar entre as abas da barra lateral: "Visão Geral" e "Filtros & Contas"
+  const navItems = document.querySelectorAll('.nav-menu .nav-item');
+  const viewVisaoGeral = document.getElementById('viewVisaoGeral');
+  const viewFiltros = document.getElementById('viewFiltros');
+  const topPeriodPicker = document.getElementById('topPeriodPicker');
+
+  navItems.forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      navItems.forEach((n) => n.classList.remove('active'));
+      item.classList.add('active');
+
+      const view = item.getAttribute('data-view');
+      if (view === 'filtros') {
+        viewVisaoGeral.classList.add('hidden');
+        viewFiltros.classList.remove('hidden');
+        topPeriodPicker.classList.add('hidden');
+        renderFilterTabView();
+      } else {
+        viewFiltros.classList.add('hidden');
+        viewVisaoGeral.classList.remove('hidden');
+        topPeriodPicker.classList.remove('hidden');
+        refreshDashboard();
+      }
+    });
+  });
+
+  // Eventos dos filtros da aba "Filtros & Contas"
+  ['tabFilterMonth', 'tabFilterYear', 'tabFilterBank', 'tabFilterCategory', 'tabFilterModality', 'tabFilterSearch'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.addEventListener('change', renderFilterTabView);
+    el.addEventListener('input', renderFilterTabView);
+  });
+
+  document.getElementById('btnClearTabFilters').addEventListener('click', () => {
+    document.getElementById('tabFilterMonth').value = 'all';
+    document.getElementById('tabFilterYear').value = 'all';
+    document.getElementById('tabFilterBank').value = 'all';
+    document.getElementById('tabFilterCategory').value = 'all';
+    document.getElementById('tabFilterModality').value = 'all';
+    document.getElementById('tabFilterSearch').value = '';
+    renderFilterTabView();
+  });
 
   // Eventos do Agente de Lançamento Rápido
   const agentForm = document.getElementById('agentCommandForm');
@@ -751,17 +882,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Seletores de mês e ano
+  // Seletores de mês e ano na Visão Geral
   const monthSelect = document.getElementById('monthSelector');
   const yearSelect = document.getElementById('yearSelector');
 
   monthSelect.addEventListener('change', (e) => {
     selectedMonth = e.target.value;
+    document.getElementById('tabFilterMonth').value = selectedMonth;
     refreshDashboard();
   });
 
   yearSelect.addEventListener('change', (e) => {
     selectedYear = Number(e.target.value);
+    document.getElementById('tabFilterYear').value = String(selectedYear);
     refreshDashboard();
   });
 
@@ -771,6 +904,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedYear = prev.year;
     selectedMonth = prev.month;
     monthSelect.value = selectedMonth;
+    document.getElementById('tabFilterMonth').value = selectedMonth;
+    document.getElementById('tabFilterYear').value = String(selectedYear);
     refreshDashboard();
   });
 
@@ -780,6 +915,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedYear = next.year;
     selectedMonth = next.month;
     monthSelect.value = selectedMonth;
+    document.getElementById('tabFilterMonth').value = selectedMonth;
+    document.getElementById('tabFilterYear').value = String(selectedYear);
     refreshDashboard();
   });
 
@@ -791,13 +928,15 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshDashboard();
   });
 
+  // Filtros na Visão Geral (atualizam também os KPIs de Receita, Despesa e Balanço!)
   document.getElementById('searchInput').addEventListener('input', renderTransactionsList);
   document.getElementById('categoryFilter').addEventListener('change', renderTransactionsList);
   document.getElementById('bankFilter').addEventListener('change', renderTransactionsList);
 
-  // Eventos de Editar e Excluir tanto em Parcelamentos quanto em Transações
+  // Eventos de Editar e Excluir em todas as listas
   document.getElementById('installmentsSummaryList').addEventListener('click', handleCardActionClick);
   document.getElementById('transactionsListContainer').addEventListener('click', handleCardActionClick);
+  document.getElementById('tabFilteredListContainer').addEventListener('click', handleCardActionClick);
 
   // Botão Zerar Todos os Dados
   document.getElementById('btnResetAll').addEventListener('click', () => {
@@ -816,7 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCloseModal').addEventListener('click', closeModal);
   document.getElementById('btnCancelModal').addEventListener('click', closeModal);
 
-  // Mostrar campo de digitar banco/conta personalizado quando selecionar "__custom__"
   document.getElementById('txAccount').addEventListener('change', (e) => {
     const customGroup = document.getElementById('customAccountGroup');
     if (e.target.value === '__custom__') {
@@ -827,7 +965,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Alternar entre À vista e Parcelado
   const btnModeAvista = document.getElementById('btnModeAvista');
   const btnModeParcelado = document.getElementById('btnModeParcelado');
   const installmentFields = document.getElementById('installmentFields');
@@ -861,7 +998,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Salvar Nova Transação ou Edição de Conta Existente
   document.getElementById('transactionForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const editingId = document.getElementById('editingTxId').value;
@@ -885,7 +1021,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!baseDescription || isNaN(rawAmount) || rawAmount <= 0) return;
 
-    // Caso esteja EDITANDO uma transação/conta existente
     if (editingId) {
       const idNum = Number(editingId);
       const targetTx = transactions.find((t) => t.id === idNum);
@@ -919,7 +1054,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } else if (!isInstallmentMode) {
-      // Nova transação À Vista
       const period = addMonthsToPeriod(startYear, startMonth, 0);
       transactions.push({
         id: Date.now(),
@@ -937,7 +1071,6 @@ document.addEventListener('DOMContentLoaded', () => {
         totalInstallments: 1
       });
     } else {
-      // Nova transação Parcelada
       const count = Math.max(2, parseInt(document.getElementById('txInstallments').value, 10) || 2);
       const valueMode = document.getElementById('txValueMode').value;
       const parcelAmount =
@@ -971,13 +1104,14 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedYear = startYear;
     selectedMonth = String(startMonth).padStart(2, '0');
     document.getElementById('monthSelector').value = selectedMonth;
+    document.getElementById('tabFilterMonth').value = selectedMonth;
+    document.getElementById('tabFilterYear').value = String(selectedYear);
 
     saveTransactions();
     refreshDashboard();
     closeModal();
   });
 
-  // Alternar Tema Claro/Escuro
   document.getElementById('btnThemeToggle').addEventListener('click', () => {
     const html = document.documentElement;
     const nextTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';

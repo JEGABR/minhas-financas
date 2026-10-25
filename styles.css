@@ -494,6 +494,24 @@ body {
   background: rgba(244, 63, 94, 0.22);
 }
 
+.view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.filter-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .filter-controls-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* KPI Grid */
 .kpi-grid {
   display: grid;
