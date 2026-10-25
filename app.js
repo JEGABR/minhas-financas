@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'minhas_financas_v2_tx';
 const USER_NAME_KEY = 'minhas_financas_username';
 const CUSTOM_BANKS_KEY = 'minhas_financas_custom_banks';
+const CHART_COLORS_KEY = 'minhas_financas_chart_colors';
 
 // Remove dados fictícios antigos caso existam
 localStorage.removeItem('finai_transactions');
@@ -42,23 +43,87 @@ const BANK_COLORS = {
   'Dinheiro / Carteira': '#10b981'
 };
 
+const DEFAULT_CHART_COLORS = {
+  income: '#10b981',
+  expense: '#f43f5e'
+};
+
 let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 let customBanks = JSON.parse(localStorage.getItem(CUSTOM_BANKS_KEY)) || [];
 let userName = localStorage.getItem(USER_NAME_KEY) || 'Gabriel';
+let chartColors = JSON.parse(localStorage.getItem(CHART_COLORS_KEY)) || { ...DEFAULT_CHART_COLORS };
 let selectedMonth = '10';
 let selectedYear = 2026;
 let isInstallmentMode = false;
 let lastAgentBatchIds = [];
 
+function applyChartColors() {
+  const inc = chartColors.income || DEFAULT_CHART_COLORS.income;
+  const exp = chartColors.expense || DEFAULT_CHART_COLORS.expense;
+  document.documentElement.style.setProperty('--chart-income-color', inc);
+  document.documentElement.style.setProperty('--chart-expense-color', exp);
+
+  const incInput = document.getElementById('colorPickerIncome');
+  const expInput = document.getElementById('colorPickerExpense');
+  if (incInput) incInput.value = inc;
+  if (expInput) expInput.value = exp;
+}
+
+function saveChartColors() {
+  localStorage.setItem(CHART_COLORS_KEY, JSON.stringify(chartColors));
+}
+
 /**
- * Agente de Lançamento Rápido em Linguagem Natural (Português)
+ * Analisa o comando digitado no Agente e retorna os campos interpretados
  */
-function parseAndExecuteAgentCommand(rawInput) {
+function analyzeAgentCommand(rawInput) {
   const text = rawInput.trim();
-  if (!text) return;
+  if (!text) return null;
 
   const lower = text.toLowerCase();
 
+  // 1. Detectar mês e ano mencionados na frase (ex: "em novembro", "em janeiro de 2027")
+  const monthKeywords = [
+    { num: 1, words: ['janeiro', 'jan'] },
+    { num: 2, words: ['fevereiro', 'fev'] },
+    { num: 3, words: ['março', 'marco', 'mar'] },
+    { num: 4, words: ['abril', 'abr'] },
+    { num: 5, words: ['maio', 'mai'] },
+    { num: 6, words: ['junho', 'jun'] },
+    { num: 7, words: ['julho', 'jul'] },
+    { num: 8, words: ['agosto', 'ago'] },
+    { num: 9, words: ['setembro', 'set'] },
+    { num: 10, words: ['outubro', 'out'] },
+    { num: 11, words: ['novembro', 'nov'] },
+    { num: 12, words: ['dezembro', 'dez'] }
+  ];
+
+  let startMonthNum = selectedMonth === 'all' ? 10 : parseInt(selectedMonth, 10);
+  let startYearNum = selectedYear;
+  let matchedMonthWords = [];
+
+  for (const mItem of monthKeywords) {
+    for (const w of mItem.words) {
+      const mRgx = new RegExp(`\\b(?:em\\s+|a\\s+partir\\s+de\\s+|para\\s+)?(${w})(?:\\s+de\\s+(20\\d{2})|\\/(20\\d{2}))?\\b`, 'i');
+      const match = text.match(mRgx);
+      if (match) {
+        startMonthNum = mItem.num;
+        if (match[2] || match[3]) {
+          startYearNum = parseInt(match[2] || match[3], 10);
+        }
+        matchedMonthWords.push(match[0]);
+        break;
+      }
+    }
+    if (matchedMonthWords.length > 0) break;
+  }
+
+  let workingText = text;
+  matchedMonthWords.forEach((mw) => {
+    workingText = workingText.replace(mw, ' ');
+  });
+
+  // 2. Detectar número de parcelas (ex: "em 12 vezes", "12x", "12 parcelas", "parcelado em 10")
   let installments = 1;
   let isParcelado = false;
   let matchedInstallmentStr = '';
@@ -69,7 +134,7 @@ function parseAndExecuteAgentCommand(rawInput) {
   ];
 
   for (const rgx of parcelRegexes) {
-    const m = text.match(rgx);
+    const m = workingText.match(rgx);
     if (m) {
       installments = Math.max(2, parseInt(m[1], 10));
       isParcelado = true;
@@ -78,12 +143,13 @@ function parseAndExecuteAgentCommand(rawInput) {
     }
   }
 
-  const isParcelValueMode = /(?:\d{1,3})\s*(?:vezes|x|parcelas?)\s+de\s+(?:r\$\s*)?\d/i.test(text);
+  const isParcelValueMode = /(?:\d{1,3})\s*(?:vezes|x|parcelas?)\s+de\s+(?:r\$\s*)?\d/i.test(workingText);
 
   let textWithoutInstallments = matchedInstallmentStr
-    ? text.replace(matchedInstallmentStr, ' ')
-    : text;
+    ? workingText.replace(matchedInstallmentStr, ' ')
+    : workingText;
 
+  // 3. Detectar valor monetário
   let amount = 0;
   let matchedAmountStr = '';
   const amountMatch = textWithoutInstallments.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i);
@@ -99,6 +165,7 @@ function parseAndExecuteAgentCommand(rawInput) {
     amount = parseFloat(numStr) || 0;
   }
 
+  // 4. Detectar Banco / Conta (incluindo bancos personalizados)
   const bankAliases = [
     { keywords: ['nubank', 'nu'], bank: 'Nubank' },
     { keywords: ['itaú', 'itau'], bank: 'Itaú' },
@@ -119,6 +186,10 @@ function parseAndExecuteAgentCommand(rawInput) {
     { keywords: ['dinheiro', 'carteira', 'espécie'], bank: 'Dinheiro / Carteira' }
   ];
 
+  customBanks.forEach((cb) => {
+    bankAliases.unshift({ keywords: [cb.toLowerCase()], bank: cb });
+  });
+
   let detectedBank = 'Nubank';
   for (const item of bankAliases) {
     const found = item.keywords.some((kw) => new RegExp(`\\b${kw}\\b`, 'i').test(lower));
@@ -128,6 +199,7 @@ function parseAndExecuteAgentCommand(rawInput) {
     }
   }
 
+  // 5. Detectar Tipo e Categoria
   const isIncome = /\b(recebi|sal[áa]rio|ganhei|receita|entrada|freelance|rendimento)\b/i.test(lower);
   const type = isIncome ? 'income' : 'expense';
   let category = 'Compras';
@@ -148,6 +220,7 @@ function parseAndExecuteAgentCommand(rawInput) {
     category = 'Educação';
   }
 
+  // 6. Extrair a Descrição limpa
   let cleanDesc = textWithoutInstallments
     .replace(matchedAmountStr, ' ')
     .replace(/\b(coloque|coloca|adicione|adiciona|lan[çc]e|lan[çc]a|registre|registra|comprei|paguei|recebi|essa|esse|esta|este|uma|um|d[íi]vida|conta|gasto|despesa|compra|parcelad[oa]|dividid[oa]|avista|[àa]\s*vista|no\s+valor\s+de|valor\s+de|por|reais|real|r\$|no\s+banco|na\s+conta|no\s+cart[ãa]o|no|na|em|de|do|da|vezes|parcelas?)\b/gi, ' ');
@@ -165,8 +238,70 @@ function parseAndExecuteAgentCommand(rawInput) {
     cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
   }
 
-  const startMonthNum = selectedMonth === 'all' ? 10 : parseInt(selectedMonth, 10);
-  const startYearNum = selectedYear;
+  const parcelAmount = isParcelado
+    ? isParcelValueMode
+      ? Math.round(amount * 100) / 100
+      : Math.round((amount / installments) * 100) / 100
+    : Math.round(amount * 100) / 100;
+
+  const totalAmount = isParcelado
+    ? Math.round(parcelAmount * installments * 100) / 100
+    : parcelAmount;
+
+  return {
+    cleanDesc,
+    amount,
+    parcelAmount,
+    totalAmount,
+    installments,
+    isParcelado,
+    isParcelValueMode,
+    detectedBank,
+    type,
+    category,
+    startMonthNum,
+    startYearNum
+  };
+}
+
+function updateAgentLivePreview() {
+  const inputVal = document.getElementById('agentCommandInput').value;
+  const previewEl = document.getElementById('agentLivePreview');
+  const parsed = analyzeAgentCommand(inputVal);
+
+  if (!parsed) {
+    previewEl.classList.add('hidden');
+    return;
+  }
+
+  const firstP = addMonthsToPeriod(parsed.startYearNum, parsed.startMonthNum, 0);
+  const lastP = addMonthsToPeriod(parsed.startYearNum, parsed.startMonthNum, parsed.installments - 1);
+
+  const modalityText = parsed.isParcelado
+    ? `Parcelado em <strong>${parsed.installments}x de ${formatBRL(parsed.parcelAmount)}</strong> (Total: ${formatBRL(parsed.totalAmount)}) • ${formatPeriodLabel(firstP.periodKey)} a ${formatPeriodLabel(lastP.periodKey)}`
+    : `À vista: <strong>${formatBRL(parsed.amount)}</strong> • ${formatPeriodLabel(firstP.periodKey)}`;
+
+  previewEl.innerHTML = `🔎 <strong>Entendido pelo Agente:</strong> Item: <strong>"${parsed.cleanDesc}"</strong> | ${modalityText} | Banco: <strong>${parsed.detectedBank}</strong> | Categoria: <strong>${parsed.category}</strong>`;
+  previewEl.classList.remove('hidden');
+}
+
+function parseAndExecuteAgentCommand(rawInput) {
+  const parsed = analyzeAgentCommand(rawInput);
+  if (!parsed) return;
+
+  const {
+    cleanDesc,
+    amount,
+    parcelAmount,
+    totalAmount,
+    installments,
+    isParcelado,
+    detectedBank,
+    type,
+    category,
+    startMonthNum,
+    startYearNum
+  } = parsed;
 
   if (amount <= 0) {
     openNewModal();
@@ -174,6 +309,8 @@ function parseAndExecuteAgentCommand(rawInput) {
     document.getElementById('txType').value = type;
     document.getElementById('txCategory').value = category;
     document.getElementById('txAccount').value = detectedBank;
+    document.getElementById('txStartMonth').value = String(startMonthNum).padStart(2, '0');
+    document.getElementById('txStartYear').value = startYearNum;
     if (isParcelado) {
       document.getElementById('btnModeParcelado').click();
       document.getElementById('txInstallments').value = installments;
@@ -197,7 +334,7 @@ function parseAndExecuteAgentCommand(rawInput) {
       id,
       description: cleanDesc,
       baseDescription: cleanDesc,
-      amount: Math.round(amount * 100) / 100,
+      amount: parcelAmount,
       type,
       category,
       account: detectedBank,
@@ -209,17 +346,17 @@ function parseAndExecuteAgentCommand(rawInput) {
       totalInstallments: 1
     });
 
+    selectedYear = period.year;
+    selectedMonth = period.month;
+    document.getElementById('monthSelector').value = selectedMonth;
+
     saveTransactions();
     refreshDashboard();
     showAgentFeedback(
-      `🤖 <strong>Agente:</strong> Lancei <strong>"${cleanDesc}"</strong> à vista no valor de <strong>${formatBRL(amount)}</strong> (${detectedBank} • ${category}) em ${formatPeriodLabel(period.periodKey)}.`,
+      `🤖 <strong>Agente:</strong> Lancei <strong>"${cleanDesc}"</strong> à vista no valor de <strong>${formatBRL(parcelAmount)}</strong> (${detectedBank} • ${category}) em ${formatPeriodLabel(period.periodKey)}.`,
       true
     );
   } else {
-    const parcelAmount = isParcelValueMode
-      ? Math.round(amount * 100) / 100
-      : Math.round((amount / installments) * 100) / 100;
-    const totalAmount = Math.round(parcelAmount * installments * 100) / 100;
     const groupId = `grp_${Date.now()}`;
 
     for (let i = 0; i < installments; i++) {
@@ -246,6 +383,10 @@ function parseAndExecuteAgentCommand(rawInput) {
 
     const firstP = addMonthsToPeriod(startYearNum, startMonthNum, 0);
     const lastP = addMonthsToPeriod(startYearNum, startMonthNum, installments - 1);
+
+    selectedYear = firstP.year;
+    selectedMonth = firstP.month;
+    document.getElementById('monthSelector').value = selectedMonth;
 
     saveTransactions();
     refreshDashboard();
@@ -345,7 +486,6 @@ function populateYearSelectors() {
 function populateBankSelectors() {
   const banks = getAllBanks();
 
-  // Filtro de bancos na Visão Geral
   const bankFilter = document.getElementById('bankFilter');
   const currentFilterVal = bankFilter.value || 'all';
   bankFilter.innerHTML =
@@ -355,7 +495,6 @@ function populateBankSelectors() {
     bankFilter.value = currentFilterVal;
   }
 
-  // Filtro de bancos na Aba Filtros & Contas
   const tabBankFilter = document.getElementById('tabFilterBank');
   const currentTabBankVal = tabBankFilter.value || 'all';
   tabBankFilter.innerHTML =
@@ -365,7 +504,6 @@ function populateBankSelectors() {
     tabBankFilter.value = currentTabBankVal;
   }
 
-  // Select de bancos dentro do Modal
   const txAccount = document.getElementById('txAccount');
   const currentModalVal = txAccount.value;
   txAccount.innerHTML =
@@ -385,9 +523,6 @@ function getPeriodTransactions() {
   });
 }
 
-/**
- * Retorna as transações do período na Visão Geral já com os filtros de Busca, Banco e Categoria aplicados
- */
 function getMainFilteredTransactions() {
   const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
   const catFilter = document.getElementById('categoryFilter').value;
@@ -436,13 +571,9 @@ function calculateSummary(list) {
 }
 
 function renderKPIs() {
-  // Usa a lista filtrada para que Receitas, Despesas e Balanço mostrem exatamente o filtro aplicado!
   const filteredList = getMainFilteredTransactions();
   const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filteredList);
-  const allSummary = calculateSummary(transactions);
   const isFiltered = hasActiveMainFilter();
-
-  document.getElementById('kpiTotalBalance').textContent = formatBRL(allSummary.netSavings);
 
   document.getElementById('kpiIncomeLabel').textContent = isFiltered ? 'Receitas (Filtro Aplicado)' : 'Receitas no Período';
   document.getElementById('kpiExpensesLabel').textContent = isFiltered ? 'Despesas (Filtro Aplicado)' : 'Despesas no Período';
@@ -594,7 +725,6 @@ function renderTransactionsList() {
     (a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id
   );
 
-  // Atualiza também os KPIs do topo e o gráfico de categorias com o filtro aplicado!
   renderKPIs();
   renderCategoryBreakdown();
   renderInstallmentsSummary();
@@ -608,7 +738,7 @@ function renderTransactionsList() {
 }
 
 /**
- * Renderiza a Aba dedicada "Filtros & Contas" (#viewFiltros)
+ * Renderiza a Aba dedicada "Filtros & Contas" (#viewFiltros), incluindo o Saldo Acumulado Geral
  */
 function renderFilterTabView() {
   const fMonth = document.getElementById('tabFilterMonth').value;
@@ -638,13 +768,18 @@ function renderFilterTabView() {
     })
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id);
 
+  // Saldo Acumulado Geral (soma de todas as receitas menos todas as despesas cadastradas)
+  const allSummary = calculateSummary(transactions);
+  const totalBalEl = document.getElementById('kpiTotalBalance');
+  totalBalEl.textContent = formatBRL(allSummary.netSavings);
+  totalBalEl.className = `kpi-value ${allSummary.netSavings > 0 ? 'positive-text' : allSummary.netSavings < 0 ? 'negative-text' : ''}`;
+
   const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filtered);
 
-  document.getElementById('tabKpiCount').textContent = String(filtered.length);
   const monthLabel = fMonth === 'all' ? 'Todos os meses' : MONTH_NAMES[fMonth];
   const yearLabel = fYear === 'all' ? 'Todos os anos' : fYear;
   const bankLabel = fBank === 'all' ? 'Todos os bancos' : fBank;
-  document.getElementById('tabKpiFilterSummary').textContent = `${monthLabel} • ${yearLabel} • ${bankLabel}`;
+  document.getElementById('tabKpiFilterSummary').textContent = `${filtered.length} item(ns) no filtro (${monthLabel}/${yearLabel} • ${bankLabel})`;
 
   document.getElementById('tabKpiIncome').textContent = formatBRL(income);
   document.getElementById('tabKpiIncomeSub').textContent = `${incomeCount} entrada(s) no filtro`;
@@ -774,8 +909,28 @@ function openEditModal(txId) {
 /* Event Listeners */
 document.addEventListener('DOMContentLoaded', () => {
   renderUserName();
+  applyChartColors();
   document.getElementById('tabFilterYear').value = String(selectedYear);
   refreshDashboard();
+
+  // Seletores de cor do gráfico
+  document.getElementById('colorPickerIncome').addEventListener('input', (e) => {
+    chartColors.income = e.target.value;
+    saveChartColors();
+    applyChartColors();
+  });
+
+  document.getElementById('colorPickerExpense').addEventListener('input', (e) => {
+    chartColors.expense = e.target.value;
+    saveChartColors();
+    applyChartColors();
+  });
+
+  document.getElementById('btnResetChartColors').addEventListener('click', () => {
+    chartColors = { ...DEFAULT_CHART_COLORS };
+    saveChartColors();
+    applyChartColors();
+  });
 
   // Alternar entre as abas da barra lateral: "Visão Geral" e "Filtros & Contas"
   const navItems = document.querySelectorAll('.nav-menu .nav-item');
@@ -821,9 +976,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFilterTabView();
   });
 
-  // Eventos do Agente de Lançamento Rápido
+  // Eventos do Agente de Lançamento Rápido e Guia na Esquerda
   const agentForm = document.getElementById('agentCommandForm');
   const agentInput = document.getElementById('agentCommandInput');
+
+  agentInput.addEventListener('input', updateAgentLivePreview);
 
   agentForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -831,12 +988,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!cmd) return;
     parseAndExecuteAgentCommand(cmd);
     agentInput.value = '';
+    document.getElementById('agentLivePreview').classList.add('hidden');
   });
 
-  document.querySelectorAll('.agent-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      const example = chip.getAttribute('data-example');
-      agentInput.value = example;
+  // Clicar num item do Guia de Comandos na barra lateral preenche o Agente
+  document.querySelectorAll('.guide-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const template = item.getAttribute('data-template');
+      agentInput.value = template;
+      updateAgentLivePreview();
       agentInput.focus();
     });
   });
@@ -928,12 +1088,10 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshDashboard();
   });
 
-  // Filtros na Visão Geral (atualizam também os KPIs de Receita, Despesa e Balanço!)
   document.getElementById('searchInput').addEventListener('input', renderTransactionsList);
   document.getElementById('categoryFilter').addEventListener('change', renderTransactionsList);
   document.getElementById('bankFilter').addEventListener('change', renderTransactionsList);
 
-  // Eventos de Editar e Excluir em todas as listas
   document.getElementById('installmentsSummaryList').addEventListener('click', handleCardActionClick);
   document.getElementById('transactionsListContainer').addEventListener('click', handleCardActionClick);
   document.getElementById('tabFilteredListContainer').addEventListener('click', handleCardActionClick);
@@ -945,6 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
       exportedAt: new Date().toISOString(),
       userName,
       customBanks,
+      chartColors,
       transactions
     };
 
@@ -1001,6 +1160,12 @@ document.addEventListener('DOMContentLoaded', () => {
           saveCustomBanks();
         }
 
+        if (parsed.chartColors && typeof parsed.chartColors === 'object') {
+          chartColors = { ...DEFAULT_CHART_COLORS, ...parsed.chartColors };
+          saveChartColors();
+          applyChartColors();
+        }
+
         if (transactions.length > 0) {
           const replaceAll = confirm(
             `O arquivo contém ${importedTx.length} lançamento(s).\n\nClique em OK para SUBSTITUIR os dados atuais pelos dados do backup, ou em Cancelar para JUNTAR (mesclar) os dados do backup com os atuais.`
@@ -1032,7 +1197,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsText(file);
   });
 
-  // Botão Zerar Todos os Dados
   document.getElementById('btnResetAll').addEventListener('click', () => {
     if (confirm('Tem certeza que deseja zerar todas as transações e deixar todos os saldos em R$ 0,00?')) {
       transactions = [];
@@ -1041,7 +1205,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Modal Nova / Editar Transação
   const modal = document.getElementById('transactionModal');
   const closeModal = () => modal.classList.add('hidden');
 

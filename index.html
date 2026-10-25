@@ -35,11 +35,50 @@
         </a>
       </nav>
 
+      <!-- Guia de Comandos do Agente na Esquerda -->
+      <div class="sidebar-guide-card">
+        <div class="sidebar-card-header">
+          <span>🤖 Guia de Comandos</span>
+        </div>
+        <p class="guide-intro">Clique em um modelo abaixo para preencher o Agente:</p>
+
+        <div class="guide-list">
+          <button type="button" class="guide-item" data-template="Geladeira 3600 parcelado em 12 vezes no Nubank">
+            <strong>1. Parcelar Valor Total</strong>
+            <span><code>[Item] [Total] em [N] vezes no [Banco]</code></span>
+            <small>Ex: Geladeira 3600 em 12 vezes no Nubank</small>
+          </button>
+
+          <button type="button" class="guide-item" data-template="Celular em 10x de 250 no Itaú">
+            <strong>2. Parcelar pelo Valor da Parcela</strong>
+            <span><code>[Item] em [N]x de [Parcela] no [Banco]</code></span>
+            <small>Ex: Celular em 10x de 250 no Itaú</small>
+          </button>
+
+          <button type="button" class="guide-item" data-template="Supermercado 450 à vista no Santander">
+            <strong>3. Gasto À Vista</strong>
+            <span><code>[Item] [Valor] à vista no [Banco]</code></span>
+            <small>Ex: Supermercado 450 à vista no Santander</small>
+          </button>
+
+          <button type="button" class="guide-item" data-template="Recebi Salário 5000 no Bradesco">
+            <strong>4. Lançar Receita / Entrada</strong>
+            <span><code>Recebi [Descrição] [Valor] no [Banco]</code></span>
+            <small>Ex: Recebi Salário 5000 no Bradesco</small>
+          </button>
+
+          <button type="button" class="guide-item" data-template="Notebook 4800 em 12x no Inter em novembro">
+            <strong>5. Escolher Mês Inicial</strong>
+            <span><code>... em [nome do mês]</code></span>
+            <small>Ex: Notebook 4800 em 12x no Inter em novembro</small>
+          </button>
+        </div>
+      </div>
+
       <div class="sidebar-card">
         <div class="sidebar-card-header">
           <span>Backup & Dados (Entre PCs)</span>
         </div>
-        <p>Exporte seus dados para levar para outro PC ou importe um backup salvo.</p>
         <div class="backup-actions">
           <button type="button" id="btnExportData" class="btn-subtle btn-backup">📥 Exportar Backup</button>
           <button type="button" id="btnImportData" class="btn-subtle btn-backup">📤 Importar Backup</button>
@@ -122,17 +161,15 @@
             type="text"
             id="agentCommandInput"
             class="agent-input"
-            placeholder='Digite um comando... Ex: "Coloque essa dívida Notebook de 3600 parcelado em 12 vezes no Nubank"'
+            placeholder='Digite como quiser (veja o Guia na esquerda)... Ex: "TV 2400 em 10x no Nubank"'
             autocomplete="off"
           />
           <button type="submit" class="btn-primary btn-agent-submit">Lançar com Agente</button>
         </form>
-        <div class="agent-examples">
-          <span>Exemplos rápidos (clique para testar):</span>
-          <button type="button" class="agent-chip" data-example="Coloque essa dívida Geladeira de 3600 parcelado em 12 vezes no Nubank">"Dívida Geladeira 3600 em 12 vezes no Nubank"</button>
-          <button type="button" class="agent-chip" data-example="Coloque Celular em 10x de 250 no Itaú">"Celular em 10x de 250 no Itaú"</button>
-          <button type="button" class="agent-chip" data-example="Adicione Supermercado 420 à vista no Santander">"Supermercado 420 à vista no Santander"</button>
-        </div>
+
+        <!-- Preview em tempo real do que o agente entendeu enquanto você digita -->
+        <div id="agentLivePreview" class="agent-live-preview hidden"></div>
+
         <div id="agentFeedback" class="agent-feedback hidden">
           <span id="agentFeedbackText"></span>
           <button type="button" id="btnUndoAgent" class="btn-undo hidden">Desfazer lançamento</button>
@@ -140,24 +177,10 @@
       </section>
 
       <!-- ==========================================
-           ABA 1: VISÃO GERAL
+           ABA 1: VISÃO GERAL (3 Cartões: Receitas, Despesas, Balanço)
            ========================================== -->
       <div id="viewVisaoGeral" class="view-container">
-        <!-- KPI Cards (atualizam conforme os filtros ativos!) -->
-        <section class="kpi-grid" id="visao-geral">
-          <article class="kpi-card">
-            <div class="kpi-top">
-              <span class="kpi-label">Saldo Acumulado Geral</span>
-              <span class="kpi-icon kpi-icon-neutral">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
-              </span>
-            </div>
-            <div class="kpi-value" id="kpiTotalBalance">R$ 0,00</div>
-            <div class="kpi-trend" id="kpiTotalSubtext">
-              <span>Soma de todas as receitas menos despesas</span>
-            </div>
-          </article>
-
+        <section class="kpi-grid kpi-grid-3" id="visao-geral">
           <article class="kpi-card">
             <div class="kpi-top">
               <span class="kpi-label" id="kpiIncomeLabel">Receitas no Período</span>
@@ -198,17 +221,24 @@
           </article>
         </section>
 
-        <!-- Charts Row -->
+        <!-- Charts Row com seletores de cor do gráfico -->
         <section class="charts-grid" id="chartsSection">
           <div class="panel chart-panel">
-            <div class="panel-header">
+            <div class="panel-header chart-header-wrap">
               <div>
                 <h2 id="cashflowChartTitle">Fluxo de Caixa Anual (Janeiro a Dezembro)</h2>
-                <p class="panel-subtitle">Receitas vs. Despesas em todos os meses do ano selecionado</p>
+                <p class="panel-subtitle">Clique nas cores ao lado para personalizar as barras do gráfico</p>
               </div>
-              <div class="chart-legend">
-                <span class="legend-item"><i class="dot dot-income"></i> Receitas</span>
-                <span class="legend-item"><i class="dot dot-expense"></i> Despesas</span>
+              <div class="chart-color-controls">
+                <label class="color-picker-label" title="Escolher cor das Receitas">
+                  <input type="color" id="colorPickerIncome" value="#10b981" />
+                  <span>Receitas</span>
+                </label>
+                <label class="color-picker-label" title="Escolher cor das Despesas">
+                  <input type="color" id="colorPickerExpense" value="#f43f5e" />
+                  <span>Despesas</span>
+                </label>
+                <button type="button" id="btnResetChartColors" class="btn-icon-sm" title="Restaurar cores padrão">Padrão</button>
               </div>
             </div>
             <div class="cashflow-chart-container" id="cashflowChart"></div>
@@ -268,7 +298,7 @@
       </div>
 
       <!-- ==========================================
-           ABA 2: FILTROS & CONTAS (ABA SEPARADA DE FILTRO COMPLETO)
+           ABA 2: FILTROS & CONTAS (com Saldo Acumulado Geral aqui!)
            ========================================== -->
       <div id="viewFiltros" class="view-container hidden">
         <!-- Painel de Filtros Avançados -->
@@ -345,18 +375,18 @@
           </div>
         </section>
 
-        <!-- Cartões de Resumo Exclusivos do Filtro Aplicado -->
+        <!-- Cartões de Resumo: Saldo Acumulado Geral + Receitas, Despesas e Balanço do Filtro -->
         <section class="kpi-grid">
           <article class="kpi-card">
             <div class="kpi-top">
-              <span class="kpi-label">Itens Encontrados no Filtro</span>
+              <span class="kpi-label">Saldo Acumulado Geral</span>
               <span class="kpi-icon kpi-icon-neutral">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
               </span>
             </div>
-            <div class="kpi-value" id="tabKpiCount">0</div>
+            <div class="kpi-value" id="kpiTotalBalance">R$ 0,00</div>
             <div class="kpi-trend" id="tabKpiFilterSummary">
-              <span>Filtro ativo</span>
+              <span>Soma geral (todas as contas)</span>
             </div>
           </article>
 
