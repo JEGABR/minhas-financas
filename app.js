@@ -57,6 +57,11 @@ let selectedYear = 2026;
 let isInstallmentMode = false;
 let lastAgentBatchIds = [];
 
+// Conjuntos de IDs selecionados para pagar/quitar múltiplas dívidas
+let selectedPayoffTxIds = new Set();
+let selectedPeriodTxIds = new Set();
+let selectedFilterTabTxIds = new Set();
+
 function applyChartColors() {
   const inc = chartColors.income || DEFAULT_CHART_COLORS.income;
   const exp = chartColors.expense || DEFAULT_CHART_COLORS.expense;
@@ -486,23 +491,17 @@ function populateYearSelectors() {
 function populateBankSelectors() {
   const banks = getAllBanks();
 
-  const bankFilter = document.getElementById('bankFilter');
-  const currentFilterVal = bankFilter.value || 'all';
-  bankFilter.innerHTML =
-    `<option value="all">Todos os bancos</option>` +
-    banks.map((b) => `<option value="${b}">${b}</option>`).join('');
-  if (banks.includes(currentFilterVal) || currentFilterVal === 'all') {
-    bankFilter.value = currentFilterVal;
-  }
-
-  const tabBankFilter = document.getElementById('tabFilterBank');
-  const currentTabBankVal = tabBankFilter.value || 'all';
-  tabBankFilter.innerHTML =
-    `<option value="all">Todos os bancos</option>` +
-    banks.map((b) => `<option value="${b}">${b}</option>`).join('');
-  if (banks.includes(currentTabBankVal) || currentTabBankVal === 'all') {
-    tabBankFilter.value = currentTabBankVal;
-  }
+  ['bankFilter', 'tabFilterBank', 'payoffBankFilter'].forEach((selectId) => {
+    const el = document.getElementById(selectId);
+    if (!el) return;
+    const currentVal = el.value || 'all';
+    el.innerHTML =
+      `<option value="all">Todos os bancos</option>` +
+      banks.map((b) => `<option value="${b}">${b}</option>`).join('');
+    if (banks.includes(currentVal) || currentVal === 'all') {
+      el.value = currentVal;
+    }
+  });
 
   const txAccount = document.getElementById('txAccount');
   const currentModalVal = txAccount.value;
@@ -525,6 +524,7 @@ function getPeriodTransactions() {
 
 function getMainFilteredTransactions() {
   const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+  const typeFilter = document.getElementById('typeFilter')?.value || 'all';
   const catFilter = document.getElementById('categoryFilter').value;
   const bankFilter = document.getElementById('bankFilter').value;
 
@@ -532,47 +532,56 @@ function getMainFilteredTransactions() {
     const matchesSearch =
       t.description.toLowerCase().includes(searchQuery) ||
       t.account.toLowerCase().includes(searchQuery);
+    const matchesType = typeFilter === 'all' || t.type === typeFilter;
     const matchesCat = catFilter === 'all' || t.category === catFilter;
     const matchesBank = bankFilter === 'all' || t.account === bankFilter;
-    return matchesSearch && matchesCat && matchesBank;
+    return matchesSearch && matchesType && matchesCat && matchesBank;
   });
 }
 
 function hasActiveMainFilter() {
   const searchQuery = document.getElementById('searchInput').value.trim();
+  const typeFilter = document.getElementById('typeFilter')?.value || 'all';
   const catFilter = document.getElementById('categoryFilter').value;
   const bankFilter = document.getElementById('bankFilter').value;
-  return searchQuery !== '' || catFilter !== 'all' || bankFilter !== 'all';
+  return searchQuery !== '' || typeFilter !== 'all' || catFilter !== 'all' || bankFilter !== 'all';
 }
 
 function calculateSummary(list) {
   const incomeList = list.filter((t) => t.type === 'income');
   const expenseList = list.filter((t) => t.type === 'expense');
 
+  // Apenas despesas em aberto (não pagas / pendentes) entram no total de Despesas em aberto
+  const openExpenseList = expenseList.filter((t) => !t.isPaid);
+  const paidExpenseList = expenseList.filter((t) => Boolean(t.isPaid));
+
   const income = incomeList.reduce((acc, t) => acc + t.amount, 0);
-  const expenses = expenseList.reduce((acc, t) => acc + t.amount, 0);
+  const expenses = openExpenseList.reduce((acc, t) => acc + t.amount, 0);
+  const paidExpenses = paidExpenseList.reduce((acc, t) => acc + t.amount, 0);
   const netSavings = income - expenses;
   const savingsRate = income > 0 ? Math.round((netSavings / income) * 100) : 0;
 
   const byCategory = {};
-  expenseList.forEach((t) => {
+  openExpenseList.forEach((t) => {
     byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
   });
 
   return {
     income,
     expenses,
+    paidExpenses,
     netSavings,
     savingsRate,
     incomeCount: incomeList.length,
-    expenseCount: expenseList.length,
+    expenseCount: openExpenseList.length,
+    paidExpenseCount: paidExpenseList.length,
     byCategory
   };
 }
 
 function renderKPIs() {
   const filteredList = getMainFilteredTransactions();
-  const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filteredList);
+  const { income, expenses, paidExpenses, netSavings, savingsRate, incomeCount, expenseCount, paidExpenseCount } = calculateSummary(filteredList);
   const isFiltered = hasActiveMainFilter();
 
   document.getElementById('kpiIncomeLabel').textContent = isFiltered ? 'Receitas (Filtro Aplicado)' : 'Receitas no Período';
@@ -583,7 +592,10 @@ function renderKPIs() {
   document.getElementById('kpiIncomeCount').textContent = `${incomeCount} entrada(s) ${isFiltered ? 'no filtro' : 'no período'}`;
 
   document.getElementById('kpiExpenses').textContent = formatBRL(expenses);
-  document.getElementById('kpiExpenseSubtext').textContent = `${expenseCount} saída(s) ${isFiltered ? 'no filtro' : 'no período'}`;
+  document.getElementById('kpiExpenseSubtext').textContent =
+    paidExpenseCount > 0
+      ? `${expenseCount} em aberto (Já pago: ${formatBRL(paidExpenses)})`
+      : `${expenseCount} em aberto ${isFiltered ? 'no filtro' : 'no período'}`;
 
   const savingsEl = document.getElementById('kpiSavingsAmount');
   savingsEl.textContent = formatBRL(netSavings);
@@ -685,7 +697,7 @@ function getInstallmentGroupStats(tx) {
   };
 }
 
-function createTransactionCardHTML(tx) {
+function createTransactionCardHTML(tx, selectionContext = '') {
   const isIncome = tx.type === 'income';
   const bankColor = BANK_COLORS[tx.account] || '#6366f1';
   const isPaid = Boolean(tx.isPaid);
@@ -706,7 +718,7 @@ function createTransactionCardHTML(tx) {
     ? `<span class="badge-installment">Parcela ${tx.installmentNumber}/${tx.totalInstallments} (${pct}%)</span>`
     : `<span class="badge-avista">À vista</span>`;
 
-  const paidStatusBadge = tx.isInstallment
+  const paidStatusBadge = tx.isInstallment || isPaid
     ? isPaid
       ? `<span class="badge-paid">✅ Paga / Adiantada</span>`
       : `<span class="badge-pending">⏳ Pendente</span>`
@@ -724,10 +736,30 @@ function createTransactionCardHTML(tx) {
     ? 'fill-indigo'
     : 'fill-amber';
 
+  // Permite selecionar mais de uma dívida (checkbox) em Parcelamentos no Período e Filtros & Contas
+  let checkboxHTML = '';
+  let isSelectedForPay = false;
+  if (selectionContext === 'period' && !isIncome) {
+    isSelectedForPay = selectedPeriodTxIds.has(tx.id);
+    checkboxHTML = `
+      <label class="tx-select-chk-wrap" title="Marcar esta dívida para pagar junto com outras">
+        <input type="checkbox" class="tx-select-chk" data-period-chk-id="${tx.id}" ${isSelectedForPay ? 'checked' : ''} />
+      </label>
+    `;
+  } else if (selectionContext === 'filterTab' && !isIncome) {
+    isSelectedForPay = selectedFilterTabTxIds.has(tx.id);
+    checkboxHTML = `
+      <label class="tx-select-chk-wrap" title="Marcar esta dívida para pagar junto com outras">
+        <input type="checkbox" class="tx-select-chk" data-filtertab-chk-id="${tx.id}" ${isSelectedForPay ? 'checked' : ''} />
+      </label>
+    `;
+  }
+
   return `
-    <div class="tx-card ${tx.isInstallment ? 'clickable-installment' : ''} ${isPaid ? 'paid-card' : ''}" ${tx.isInstallment ? `data-card-detail-id="${tx.id}"` : ''}>
+    <div class="tx-card ${tx.isInstallment ? 'clickable-installment' : ''} ${isPaid ? 'paid-card' : ''} ${isSelectedForPay ? 'selected-for-pay' : ''}" ${tx.isInstallment ? `data-card-detail-id="${tx.id}"` : ''}>
       <div class="tx-card-top">
         <div class="tx-card-main">
+          ${checkboxHTML}
           <span class="tx-card-title">${tx.description}</span>
           ${modalityBadge}
           ${paidStatusBadge}
@@ -754,6 +786,29 @@ function createTransactionCardHTML(tx) {
   `;
 }
 
+function updatePeriodBatchPayBar() {
+  const existingIds = new Set(transactions.map((t) => t.id));
+  selectedPeriodTxIds.forEach((id) => {
+    if (!existingIds.has(id)) selectedPeriodTxIds.delete(id);
+  });
+
+  const selectedItems = transactions.filter((t) => selectedPeriodTxIds.has(t.id));
+  const totalSelected = selectedItems.reduce((acc, t) => acc + t.amount, 0);
+
+  const infoEl = document.getElementById('periodSelectedInfoText');
+  const totalEl = document.getElementById('periodSelectedTotalAmount');
+
+  if (infoEl) {
+    infoEl.textContent =
+      selectedItems.length > 0
+        ? `${selectedItems.length} dívida(s) marcada(s) para pagar juntas`
+        : 'Marque a caixinha em 1 ou mais dívidas abaixo para pagar juntas';
+  }
+  if (totalEl) {
+    totalEl.textContent = `Total selecionado: ${formatBRL(totalSelected)}`;
+  }
+}
+
 function renderInstallmentsSummary() {
   const container = document.getElementById('installmentsSummaryList');
   const hidePaid = document.getElementById('chkHidePaidInstallments')?.checked;
@@ -762,12 +817,14 @@ function renderInstallmentsSummary() {
     .filter((t) => t.isInstallment && (!hidePaid || !t.isPaid))
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id);
 
+  updatePeriodBatchPayBar();
+
   if (periodList.length === 0) {
     container.innerHTML = `<p class="empty-state">Nenhuma parcela ativa para mostrar neste período/filtro (R$ 0,00).</p>`;
     return;
   }
 
-  container.innerHTML = periodList.map(createTransactionCardHTML).join('');
+  container.innerHTML = periodList.map((t) => createTransactionCardHTML(t, 'period')).join('');
 }
 
 function renderTransactionsList() {
@@ -785,13 +842,232 @@ function renderTransactionsList() {
     return;
   }
 
-  container.innerHTML = filtered.map(createTransactionCardHTML).join('');
+  container.innerHTML = filtered.map((t) => createTransactionCardHTML(t, '')).join('');
 }
 
 /**
- * Renderiza a Aba dedicada "Filtros & Contas" (#viewFiltros), incluindo o Saldo Acumulado Geral
+ * Agrupa todas as contas parceladas (dívidas) para a Central "Quitar Dívidas"
  */
-function renderFilterTabView() {
+function getGroupedInstallmentDebts() {
+  const installmentTxs = transactions.filter((t) => t.isInstallment);
+  const groupsMap = new Map();
+
+  installmentTxs.forEach((tx) => {
+    const key = tx.groupId || `single_inst_${tx.id}`;
+    if (!groupsMap.has(key)) {
+      groupsMap.set(key, []);
+    }
+    groupsMap.get(key).push(tx);
+  });
+
+  const debtGroups = [];
+  groupsMap.forEach((items, groupKey) => {
+    const sortedItems = [...items].sort((a, b) => a.installmentNumber - b.installmentNumber);
+    const first = sortedItems[0];
+    const last = sortedItems[sortedItems.length - 1];
+    const paidItems = sortedItems.filter((i) => i.isPaid);
+    const pendingItems = sortedItems.filter((i) => !i.isPaid);
+
+    const totalAmount = sortedItems.reduce((acc, i) => acc + i.amount, 0);
+    const paidAmount = paidItems.reduce((acc, i) => acc + i.amount, 0);
+    const remainingAmount = pendingItems.reduce((acc, i) => acc + i.amount, 0);
+
+    debtGroups.push({
+      groupKey,
+      representativeId: first.id,
+      name: first.baseDescription || first.description,
+      account: first.account,
+      category: first.category,
+      parcelAmount: first.amount,
+      totalCount: sortedItems.length,
+      paidCount: paidItems.length,
+      pendingCount: pendingItems.length,
+      totalAmount,
+      paidAmount,
+      remainingAmount,
+      firstPeriodKey: first.periodKey,
+      lastPeriodKey: last.periodKey,
+      items: sortedItems,
+      pendingItems
+    });
+  });
+
+  return debtGroups.sort((a, b) => b.remainingAmount - a.remainingAmount || b.representativeId - a.representativeId);
+}
+
+/**
+ * Renderiza a Aba 2: Central "Quitar Dívidas — Contas Parceladas" (#viewQuitarDividas)
+ */
+function renderPayoffDebtsView() {
+  const existingIds = new Set(transactions.filter((t) => t.isInstallment).map((t) => t.id));
+  selectedPayoffTxIds.forEach((id) => {
+    if (!existingIds.has(id)) selectedPayoffTxIds.delete(id);
+  });
+
+  const allDebtGroups = getGroupedInstallmentDebts();
+  const activeDebts = allDebtGroups.filter((g) => g.pendingCount > 0);
+  const totalPendingParcelsAll = allDebtGroups.reduce((acc, g) => acc + g.pendingCount, 0);
+  const totalPaidParcelsAll = allDebtGroups.reduce((acc, g) => acc + g.paidCount, 0);
+  const totalPaidAmountAll = allDebtGroups.reduce((acc, g) => acc + g.paidAmount, 0);
+  const totalRemainingAmountAll = allDebtGroups.reduce((acc, g) => acc + g.remainingAmount, 0);
+
+  // Calcula quantas dívidas e parcelas estão marcadas na seleção múltipla
+  const selectedTxObjects = transactions.filter((t) => selectedPayoffTxIds.has(t.id));
+  const selectedTotalValue = selectedTxObjects.reduce((acc, t) => acc + t.amount, 0);
+  const selectedDebtsSet = new Set(selectedTxObjects.map((t) => t.groupId || `single_inst_${t.id}`));
+
+  document.getElementById('payoffKpiActiveCount').textContent = `${activeDebts.length} dívida(s)`;
+  document.getElementById('payoffKpiActiveSub').textContent = `${totalPendingParcelsAll} parcela(s) pendente(s) no total`;
+
+  document.getElementById('payoffKpiTotalPaid').textContent = formatBRL(totalPaidAmountAll);
+  document.getElementById('payoffKpiPaidSub').textContent = `${totalPaidParcelsAll} parcela(s) já quitada(s)`;
+
+  document.getElementById('payoffKpiTotalRemaining').textContent = formatBRL(totalRemainingAmountAll);
+  document.getElementById('payoffKpiRemainingSub').textContent = `Soma restante de todos os parcelamentos`;
+
+  document.getElementById('payoffKpiSelectedTotal').textContent = formatBRL(selectedTotalValue);
+  document.getElementById('payoffKpiSelectedSub').textContent = `${selectedDebtsSet.size} dívida(s) / ${selectedTxObjects.length} parcela(s) marcada(s)`;
+
+  document.getElementById('payoffBarSummaryText').textContent =
+    selectedTxObjects.length > 0
+      ? `Selecionado: ${selectedDebtsSet.size} dívida(s) (${selectedTxObjects.length} parcela(s) marcada(s))`
+      : 'Marque 1, 2 ou mais dívidas (ou parcelas específicas) abaixo para somar e pagar de uma vez';
+  document.getElementById('payoffBarTotalValue').textContent = `Valor p/ pagar: ${formatBRL(selectedTotalValue)}`;
+
+  const searchQ = (document.getElementById('payoffSearchInput')?.value || '').toLowerCase().trim();
+  const bankF = document.getElementById('payoffBankFilter')?.value || 'all';
+  const statusF = document.getElementById('payoffStatusFilter')?.value || 'pending';
+
+  const filteredGroups = allDebtGroups.filter((g) => {
+    if (statusF === 'pending' && g.pendingCount === 0) return false;
+    if (bankF !== 'all' && g.account !== bankF) return false;
+    if (
+      searchQ &&
+      !g.name.toLowerCase().includes(searchQ) &&
+      !g.account.toLowerCase().includes(searchQ) &&
+      !g.category.toLowerCase().includes(searchQ)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const container = document.getElementById('payoffDebtsContainer');
+  if (filteredGroups.length === 0) {
+    container.innerHTML = `<p class="empty-state">Nenhuma conta parcelada encontrada para este filtro (R$ 0,00).</p>`;
+    return;
+  }
+
+  container.innerHTML = filteredGroups
+    .map((group) => {
+      const bankColor = BANK_COLORS[group.account] || '#6366f1';
+      const paidPct = group.totalCount > 0 ? Math.round((group.paidCount / group.totalCount) * 100) : 0;
+
+      // Verifica quantas parcelas desta dívida estão selecionadas
+      const selectedInGroup = group.items.filter((i) => selectedPayoffTxIds.has(i.id));
+      const selectedAmountInGroup = selectedInGroup.reduce((acc, i) => acc + i.amount, 0);
+      const allPendingSelected =
+        group.pendingItems.length > 0 &&
+        group.pendingItems.every((i) => selectedPayoffTxIds.has(i.id));
+
+      const parcelsChipsHTML = group.items
+        .map((item) => {
+          const isPaid = Boolean(item.isPaid);
+          const isChecked = selectedPayoffTxIds.has(item.id);
+          return `
+            <label class="debt-parcel-chip ${isPaid ? 'chip-paid' : ''} ${isChecked ? 'chip-selected' : ''}" title="Clique para marcar/desmarcar esta parcela">
+              <input type="checkbox" class="debt-pill-chk" data-payoff-tx-id="${item.id}" ${isChecked ? 'checked' : ''} />
+              <span><strong>${item.installmentNumber}/${item.totalInstallments}</strong> (${formatPeriodLabel(item.periodKey)})</span>
+              <span>${formatBRL(item.amount)}</span>
+              <span>${isPaid ? '✅' : '⏳'}</span>
+            </label>
+          `;
+        })
+        .join('');
+
+      return `
+        <div class="debt-group-card ${selectedInGroup.length > 0 ? 'debt-selected' : ''}">
+          <div class="debt-group-top">
+            <div class="debt-group-title-area">
+              <label class="tx-select-chk-wrap" title="Marcar todas as parcelas pendentes desta dívida">
+                <input type="checkbox" class="debt-group-chk" data-payoff-group-key="${group.groupKey}" ${allPendingSelected ? 'checked' : ''} />
+              </label>
+              <span class="debt-group-name" data-detail-id="${group.representativeId}">${group.name}</span>
+              <span class="badge-bank" style="background: ${bankColor}">${group.account}</span>
+              <span class="badge-category">${group.category}</span>
+              <span class="tx-card-meta">• ${formatPeriodLabel(group.firstPeriodKey)} até ${formatPeriodLabel(group.lastPeriodKey)}</span>
+            </div>
+
+            <div class="tx-card-actions">
+              <button type="button" class="btn-icon-sm" data-select-next-group="${group.groupKey}" title="Marcar apenas a próxima parcela pendente desta dívida">
+                + 1ª Pendente (${formatBRL(group.parcelAmount)})
+              </button>
+              <button type="button" class="btn-icon-sm" data-select-all-group="${group.groupKey}" title="Marcar todas as parcelas pendentes desta dívida para quitar">
+                Marcar Quitação (${formatBRL(group.remainingAmount)})
+              </button>
+              <button type="button" class="btn-action" data-detail-id="${group.representativeId}">
+                📋 Detalhes
+              </button>
+            </div>
+          </div>
+
+          <div class="debt-group-stats-row">
+            <div class="debt-stat-pill">
+              <small>Total da Compra (${group.totalCount}x)</small>
+              <strong>${formatBRL(group.totalAmount)}</strong>
+            </div>
+            <div class="debt-stat-pill">
+              <small>Já Pago (${group.paidCount}/${group.totalCount})</small>
+              <strong class="positive-text">${formatBRL(group.paidAmount)}</strong>
+            </div>
+            <div class="debt-stat-pill">
+              <small>Falta Quitar (${group.pendingCount}x)</small>
+              <strong class="negative-text">${formatBRL(group.remainingAmount)}</strong>
+            </div>
+            <div class="debt-stat-pill">
+              <small>Marcado nesta dívida (${selectedInGroup.length}x)</small>
+              <strong class="positive-text">${formatBRL(selectedAmountInGroup)}</strong>
+            </div>
+          </div>
+
+          <div class="progress-bar">
+            <div class="progress-fill fill-emerald" style="width: ${paidPct}%"></div>
+          </div>
+
+          <div class="debt-parcels-grid">
+            ${parcelsChipsHTML}
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function updateFilterTabBatchPayBar() {
+  const existingIds = new Set(transactions.map((t) => t.id));
+  selectedFilterTabTxIds.forEach((id) => {
+    if (!existingIds.has(id)) selectedFilterTabTxIds.delete(id);
+  });
+
+  const selectedItems = transactions.filter((t) => selectedFilterTabTxIds.has(t.id));
+  const totalSelected = selectedItems.reduce((acc, t) => acc + t.amount, 0);
+
+  const infoEl = document.getElementById('filterTabSelectedInfoText');
+  const totalEl = document.getElementById('filterTabSelectedTotalAmount');
+
+  if (infoEl) {
+    infoEl.textContent =
+      selectedItems.length > 0
+        ? `${selectedItems.length} dívida(s) marcada(s) no filtro para pagar juntas`
+        : 'Marque 1 ou mais dívidas na lista abaixo para pagar juntas';
+  }
+  if (totalEl) {
+    totalEl.textContent = `Total selecionado: ${formatBRL(totalSelected)}`;
+  }
+}
+
+function getFilteredTabTransactionsList() {
+  const fType = document.getElementById('tabFilterType')?.value || 'all';
   const fMonth = document.getElementById('tabFilterMonth').value;
   const fYear = document.getElementById('tabFilterYear').value;
   const fBank = document.getElementById('tabFilterBank').value;
@@ -799,8 +1075,9 @@ function renderFilterTabView() {
   const fModality = document.getElementById('tabFilterModality').value;
   const fSearch = document.getElementById('tabFilterSearch').value.toLowerCase().trim();
 
-  const filtered = transactions
+  return transactions
     .filter((t) => {
+      if (fType !== 'all' && t.type !== fType) return false;
       if (fYear !== 'all' && String(t.year) !== String(fYear)) return false;
       if (fMonth !== 'all' && t.month !== fMonth) return false;
       if (fBank !== 'all' && t.account !== fBank) return false;
@@ -818,6 +1095,18 @@ function renderFilterTabView() {
       return true;
     })
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id);
+}
+
+/**
+ * Renderiza a Aba "Filtros & Contas" (#viewFiltros), incluindo o Saldo Acumulado Geral e o Filtro de Receita/Despesa
+ */
+function renderFilterTabView() {
+  const fType = document.getElementById('tabFilterType')?.value || 'all';
+  const fMonth = document.getElementById('tabFilterMonth').value;
+  const fYear = document.getElementById('tabFilterYear').value;
+  const fBank = document.getElementById('tabFilterBank').value;
+
+  const filtered = getFilteredTabTransactionsList();
 
   // Saldo Acumulado Geral (soma de todas as receitas menos todas as despesas cadastradas)
   const allSummary = calculateSummary(transactions);
@@ -827,10 +1116,12 @@ function renderFilterTabView() {
 
   const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filtered);
 
+  const typeLabel =
+    fType === 'income' ? 'Receitas' : fType === 'expense' ? 'Despesas' : 'Receitas + Despesas';
   const monthLabel = fMonth === 'all' ? 'Todos os meses' : MONTH_NAMES[fMonth];
   const yearLabel = fYear === 'all' ? 'Todos os anos' : fYear;
   const bankLabel = fBank === 'all' ? 'Todos os bancos' : fBank;
-  document.getElementById('tabKpiFilterSummary').textContent = `${filtered.length} item(ns) no filtro (${monthLabel}/${yearLabel} • ${bankLabel})`;
+  document.getElementById('tabKpiFilterSummary').textContent = `${filtered.length} item(ns) (${typeLabel} • ${monthLabel}/${yearLabel} • ${bankLabel})`;
 
   document.getElementById('tabKpiIncome').textContent = formatBRL(income);
   document.getElementById('tabKpiIncomeSub').textContent = `${incomeCount} entrada(s) no filtro`;
@@ -843,13 +1134,15 @@ function renderFilterTabView() {
   balEl.className = `kpi-value ${netSavings > 0 ? 'positive-text' : netSavings < 0 ? 'negative-text' : ''}`;
   document.getElementById('tabKpiSavingsRate').textContent = `Taxa de economia no filtro: ${savingsRate}%`;
 
+  updateFilterTabBatchPayBar();
+
   const container = document.getElementById('tabFilteredListContainer');
   if (filtered.length === 0) {
     container.innerHTML = `<p class="empty-state">Nenhuma transação ou conta encontrada para os filtros selecionados (R$ 0,00).</p>`;
     return;
   }
 
-  container.innerHTML = filtered.map(createTransactionCardHTML).join('');
+  container.innerHTML = filtered.map((t) => createTransactionCardHTML(t, 'filterTab')).join('');
 }
 
 function updateInstallmentPreview() {
@@ -875,12 +1168,64 @@ function refreshDashboard() {
   populateBankSelectors();
   renderCashflowChart();
   renderTransactionsList();
+  renderPayoffDebtsView();
   renderFilterTabView();
+}
+
+/**
+ * Executa o pagamento / quitação em lote para qualquer conjunto de IDs selecionados
+ */
+function executeBatchPayForIds(idsSet, advanceMode) {
+  if (!idsSet || idsSet.size === 0) {
+    alert('Selecione ao menos uma dívida ou parcela antes de confirmar o pagamento.');
+    return false;
+  }
+
+  const targetItems = transactions.filter((t) => idsSet.has(t.id));
+  const totalPaid = targetItems.reduce((acc, t) => acc + t.amount, 0);
+  const countPaid = targetItems.length;
+
+  const currentM = selectedMonth === 'all' ? '10' : selectedMonth;
+  const currentPeriodKey = `${selectedYear}-${currentM}`;
+
+  if (advanceMode === 'remove_paid') {
+    transactions = transactions.filter((t) => !idsSet.has(t.id));
+    if (idsSet.has(activeDetailTxId)) {
+      const remaining = transactions.find((t) => t.isInstallment);
+      activeDetailTxId = remaining ? remaining.id : null;
+    }
+  } else {
+    transactions.forEach((t) => {
+      if (idsSet.has(t.id)) {
+        t.isPaid = true;
+        if (advanceMode === 'move_to_current') {
+          t.year = selectedYear;
+          t.month = currentM;
+          t.periodKey = currentPeriodKey;
+        }
+      }
+    });
+  }
+
+  idsSet.clear();
+  saveTransactions();
+  refreshDashboard();
+
+  showAgentFeedback(
+    `✅ <strong>Pagamento confirmado!</strong> ${countPaid} dívida(s)/parcela(s) no total de <strong>${formatBRL(totalPaid)}</strong> foram quitadas com sucesso.`,
+    false
+  );
+  return true;
 }
 
 let activeDetailTxId = null;
 
 function handleCardActionClick(e) {
+  // Evita abrir o modal quando clicou diretamente no checkbox de seleção múltipla
+  if (e.target.closest('.tx-select-chk-wrap') || e.target.classList.contains('tx-select-chk')) {
+    return;
+  }
+
   const detailBtn = e.target.closest('[data-detail-id]');
   if (detailBtn) {
     const id = Number(detailBtn.getAttribute('data-detail-id'));
@@ -976,7 +1321,7 @@ function renderInstallmentDetailModalContent() {
       return `
         <div class="inst-parcel-item ${isPaid ? 'is-paid' : ''}">
           <label class="inst-parcel-left">
-            <input type="checkbox" class="inst-select-chk" data-parcel-id="${item.id}" data-parcel-amount="${item.amount}" ${isPaid ? '' : ''} />
+            <input type="checkbox" class="inst-select-chk" data-parcel-id="${item.id}" data-parcel-amount="${item.amount}" />
             <div>
               <strong>Parcela ${item.installmentNumber}/${item.totalInstallments}</strong>
               <span class="tx-card-meta">• Vencimento/Mês: ${formatPeriodLabel(item.periodKey)}</span>
@@ -1057,6 +1402,36 @@ function openEditModal(txId) {
   document.getElementById('transactionModal').classList.remove('hidden');
 }
 
+function switchActiveView(viewName) {
+  const navItems = document.querySelectorAll('.nav-menu .nav-item');
+  const viewVisaoGeral = document.getElementById('viewVisaoGeral');
+  const viewQuitarDividas = document.getElementById('viewQuitarDividas');
+  const viewFiltros = document.getElementById('viewFiltros');
+  const topPeriodPicker = document.getElementById('topPeriodPicker');
+
+  navItems.forEach((n) => {
+    n.classList.toggle('active', n.getAttribute('data-view') === viewName);
+  });
+
+  viewVisaoGeral.classList.add('hidden');
+  viewQuitarDividas.classList.add('hidden');
+  viewFiltros.classList.add('hidden');
+
+  if (viewName === 'quitar-dividas') {
+    viewQuitarDividas.classList.remove('hidden');
+    topPeriodPicker.classList.add('hidden');
+    renderPayoffDebtsView();
+  } else if (viewName === 'filtros') {
+    viewFiltros.classList.remove('hidden');
+    topPeriodPicker.classList.add('hidden');
+    renderFilterTabView();
+  } else {
+    viewVisaoGeral.classList.remove('hidden');
+    topPeriodPicker.classList.remove('hidden');
+    refreshDashboard();
+  }
+}
+
 /* Event Listeners */
 document.addEventListener('DOMContentLoaded', () => {
   renderUserName();
@@ -1083,41 +1458,165 @@ document.addEventListener('DOMContentLoaded', () => {
     applyChartColors();
   });
 
-  // Alternar entre as abas da barra lateral: "Visão Geral" e "Filtros & Contas"
-  const navItems = document.querySelectorAll('.nav-menu .nav-item');
-  const viewVisaoGeral = document.getElementById('viewVisaoGeral');
-  const viewFiltros = document.getElementById('viewFiltros');
-  const topPeriodPicker = document.getElementById('topPeriodPicker');
-
-  navItems.forEach((item) => {
+  // Alternar entre as abas da barra lateral: "Visão Geral", "Quitar Dívidas" e "Filtros & Contas"
+  document.querySelectorAll('.nav-menu .nav-item').forEach((item) => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
-      navItems.forEach((n) => n.classList.remove('active'));
-      item.classList.add('active');
-
-      const view = item.getAttribute('data-view');
-      if (view === 'filtros') {
-        viewVisaoGeral.classList.add('hidden');
-        viewFiltros.classList.remove('hidden');
-        topPeriodPicker.classList.add('hidden');
-        renderFilterTabView();
-      } else {
-        viewFiltros.classList.add('hidden');
-        viewVisaoGeral.classList.remove('hidden');
-        topPeriodPicker.classList.remove('hidden');
-        refreshDashboard();
-      }
+      switchActiveView(item.getAttribute('data-view'));
     });
   });
 
-  // Eventos dos filtros da aba "Filtros & Contas"
-  ['tabFilterMonth', 'tabFilterYear', 'tabFilterBank', 'tabFilterCategory', 'tabFilterModality', 'tabFilterSearch'].forEach((id) => {
+  // Botão rápido na Visão Geral para abrir a Central Quitar Dívidas
+  document.getElementById('btnGoToPayoffTab')?.addEventListener('click', () => {
+    switchActiveView('quitar-dividas');
+  });
+
+  // ==========================================
+  // EVENTOS: SELEÇÃO MÚLTIPLA EM "PARCELAMENTOS NO PERÍODO"
+  // ==========================================
+  document.getElementById('installmentsSummaryList').addEventListener('change', (e) => {
+    const chk = e.target.closest('[data-period-chk-id]');
+    if (!chk) return;
+    const id = Number(chk.getAttribute('data-period-chk-id'));
+    if (chk.checked) {
+      selectedPeriodTxIds.add(id);
+    } else {
+      selectedPeriodTxIds.delete(id);
+    }
+    renderInstallmentsSummary();
+  });
+
+  document.getElementById('btnSelectAllPeriodInst').addEventListener('click', () => {
+    const hidePaid = document.getElementById('chkHidePaidInstallments')?.checked;
+    const periodPending = getMainFilteredTransactions().filter(
+      (t) => t.isInstallment && !t.isPaid && (!hidePaid || !t.isPaid)
+    );
+    periodPending.forEach((t) => selectedPeriodTxIds.add(t.id));
+    renderInstallmentsSummary();
+  });
+
+  document.getElementById('btnClearPeriodInst').addEventListener('click', () => {
+    selectedPeriodTxIds.clear();
+    renderInstallmentsSummary();
+  });
+
+  document.getElementById('btnPayPeriodSelected').addEventListener('click', () => {
+    const mode = document.getElementById('periodBatchAdvanceMode').value;
+    executeBatchPayForIds(selectedPeriodTxIds, mode);
+  });
+
+  // ==========================================
+  // EVENTOS: CENTRAL "QUITAR DÍVIDAS — CONTAS PARCELADAS" (#viewQuitarDividas)
+  // ==========================================
+  ['payoffSearchInput', 'payoffBankFilter', 'payoffStatusFilter'].forEach((id) => {
     const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', renderPayoffDebtsView);
+    el.addEventListener('change', renderPayoffDebtsView);
+  });
+
+  document.getElementById('payoffDebtsContainer').addEventListener('change', (e) => {
+    // 1. Marcar/desmarcar todas as parcelas pendentes de uma dívida inteira
+    const groupChk = e.target.closest('[data-payoff-group-key]');
+    if (groupChk) {
+      const groupKey = groupChk.getAttribute('data-payoff-group-key');
+      const group = getGroupedInstallmentDebts().find((g) => g.groupKey === groupKey);
+      if (group) {
+        const targets = group.pendingItems.length > 0 ? group.pendingItems : group.items;
+        targets.forEach((item) => {
+          if (groupChk.checked) {
+            selectedPayoffTxIds.add(item.id);
+          } else {
+            selectedPayoffTxIds.delete(item.id);
+          }
+        });
+        renderPayoffDebtsView();
+      }
+      return;
+    }
+
+    // 2. Marcar/desmarcar uma parcela individual dentro do cartão da dívida
+    const pillChk = e.target.closest('[data-payoff-tx-id]');
+    if (pillChk) {
+      const txId = Number(pillChk.getAttribute('data-payoff-tx-id'));
+      if (pillChk.checked) {
+        selectedPayoffTxIds.add(txId);
+      } else {
+        selectedPayoffTxIds.delete(txId);
+      }
+      renderPayoffDebtsView();
+    }
+  });
+
+  document.getElementById('payoffDebtsContainer').addEventListener('click', (e) => {
+    const nextBtn = e.target.closest('[data-select-next-group]');
+    if (nextBtn) {
+      const groupKey = nextBtn.getAttribute('data-select-next-group');
+      const group = getGroupedInstallmentDebts().find((g) => g.groupKey === groupKey);
+      if (group && group.pendingItems.length > 0) {
+        selectedPayoffTxIds.add(group.pendingItems[0].id);
+        renderPayoffDebtsView();
+      }
+      return;
+    }
+
+    const allGroupBtn = e.target.closest('[data-select-all-group]');
+    if (allGroupBtn) {
+      const groupKey = allGroupBtn.getAttribute('data-select-all-group');
+      const group = getGroupedInstallmentDebts().find((g) => g.groupKey === groupKey);
+      if (group) {
+        group.pendingItems.forEach((i) => selectedPayoffTxIds.add(i.id));
+        renderPayoffDebtsView();
+      }
+      return;
+    }
+
+    const detailBtn = e.target.closest('[data-detail-id]');
+    if (detailBtn) {
+      const id = Number(detailBtn.getAttribute('data-detail-id'));
+      openInstallmentDetailModal(id);
+    }
+  });
+
+  document.getElementById('btnPayoffSelectAllRemaining').addEventListener('click', () => {
+    getGroupedInstallmentDebts().forEach((g) => {
+      g.pendingItems.forEach((i) => selectedPayoffTxIds.add(i.id));
+    });
+    renderPayoffDebtsView();
+  });
+
+  document.getElementById('btnPayoffSelectNextInstallmentEach').addEventListener('click', () => {
+    selectedPayoffTxIds.clear();
+    getGroupedInstallmentDebts().forEach((g) => {
+      if (g.pendingItems.length > 0) {
+        selectedPayoffTxIds.add(g.pendingItems[0].id);
+      }
+    });
+    renderPayoffDebtsView();
+  });
+
+  document.getElementById('btnPayoffClearSelection').addEventListener('click', () => {
+    selectedPayoffTxIds.clear();
+    renderPayoffDebtsView();
+  });
+
+  document.getElementById('btnExecuteMultiPayoff').addEventListener('click', () => {
+    const mode = document.getElementById('payoffBatchMode').value;
+    executeBatchPayForIds(selectedPayoffTxIds, mode);
+  });
+
+  // ==========================================
+  // EVENTOS: ABA "FILTROS & CONTAS" (Filtro Receita/Despesa + Seleção Múltipla)
+  // ==========================================
+  ['tabFilterType', 'tabFilterMonth', 'tabFilterYear', 'tabFilterBank', 'tabFilterCategory', 'tabFilterModality', 'tabFilterSearch'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
     el.addEventListener('change', renderFilterTabView);
     el.addEventListener('input', renderFilterTabView);
   });
 
   document.getElementById('btnClearTabFilters').addEventListener('click', () => {
+    document.getElementById('tabFilterType').value = 'all';
     document.getElementById('tabFilterMonth').value = 'all';
     document.getElementById('tabFilterYear').value = 'all';
     document.getElementById('tabFilterBank').value = 'all';
@@ -1125,6 +1624,34 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tabFilterModality').value = 'all';
     document.getElementById('tabFilterSearch').value = '';
     renderFilterTabView();
+  });
+
+  document.getElementById('tabFilteredListContainer').addEventListener('change', (e) => {
+    const chk = e.target.closest('[data-filtertab-chk-id]');
+    if (!chk) return;
+    const id = Number(chk.getAttribute('data-filtertab-chk-id'));
+    if (chk.checked) {
+      selectedFilterTabTxIds.add(id);
+    } else {
+      selectedFilterTabTxIds.delete(id);
+    }
+    renderFilterTabView();
+  });
+
+  document.getElementById('btnSelectAllFilterTabInst').addEventListener('click', () => {
+    const filtered = getFilteredTabTransactionsList().filter((t) => t.type === 'expense' && !t.isPaid);
+    filtered.forEach((t) => selectedFilterTabTxIds.add(t.id));
+    renderFilterTabView();
+  });
+
+  document.getElementById('btnClearFilterTabInst').addEventListener('click', () => {
+    selectedFilterTabTxIds.clear();
+    renderFilterTabView();
+  });
+
+  document.getElementById('btnPayFilterTabSelected').addEventListener('click', () => {
+    const mode = document.getElementById('filterTabBatchAdvanceMode').value;
+    executeBatchPayForIds(selectedFilterTabTxIds, mode);
   });
 
   // Eventos do Agente de Lançamento Rápido e Guia na Esquerda
@@ -1240,6 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('searchInput').addEventListener('input', renderTransactionsList);
+  document.getElementById('typeFilter').addEventListener('change', renderTransactionsList);
   document.getElementById('categoryFilter').addEventListener('change', renderTransactionsList);
   document.getElementById('bankFilter').addEventListener('change', renderTransactionsList);
 
@@ -1302,31 +1830,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const selectedIds = new Set(checkedBoxes.map((c) => Number(c.getAttribute('data-parcel-id'))));
     const advanceMode = document.getElementById('instAdvanceMode').value;
-    const currentM = selectedMonth === 'all' ? '10' : selectedMonth;
-    const currentPeriodKey = `${selectedYear}-${currentM}`;
-
-    if (advanceMode === 'remove_paid') {
-      transactions = transactions.filter((t) => !selectedIds.has(t.id));
-      // Caso a parcela ativa tenha sido removida, aponta para outra do mesmo grupo se existir
-      if (selectedIds.has(activeDetailTxId)) {
-        const remaining = transactions.find((t) => t.isInstallment);
-        activeDetailTxId = remaining ? remaining.id : null;
-      }
-    } else {
-      transactions.forEach((t) => {
-        if (selectedIds.has(t.id)) {
-          t.isPaid = true;
-          if (advanceMode === 'move_to_current') {
-            t.year = selectedYear;
-            t.month = currentM;
-            t.periodKey = currentPeriodKey;
-          }
-        }
-      });
-    }
-
-    saveTransactions();
-    refreshDashboard();
+    executeBatchPayForIds(selectedIds, advanceMode);
     renderInstallmentDetailModalContent();
   });
 
@@ -1434,6 +1938,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnResetAll').addEventListener('click', () => {
     if (confirm('Tem certeza que deseja zerar todas as transações e deixar todos os saldos em R$ 0,00?')) {
       transactions = [];
+      selectedPayoffTxIds.clear();
+      selectedPeriodTxIds.clear();
+      selectedFilterTabTxIds.clear();
       saveTransactions();
       refreshDashboard();
     }

@@ -1349,8 +1349,13 @@ body {
   grid-column: span 3;
 }
 
+.form-group-search-span-2 {
+  grid-column: span 2;
+}
+
 @media (max-width: 900px) {
-  .form-group-search-span {
+  .form-group-search-span,
+  .form-group-search-span-2 {
     grid-column: span 2;
   }
 }

@@ -19,16 +19,21 @@ Aplicação pessoal de controle financeiro (**Minhas Finanças**) criada em **HT
    - Nome do usuário editável na barra lateral esquerda (`#btnEditUserName`), atualizando também o avatar e o título de boas-vindas (`localStorage` key: `minhas_financas_username`).
    - Status inicial 100% zerado (`R$ 0,00`), sem dados fictícios, com botão **"Zerar todos os dados"** na barra lateral.
 
-2. **Navegação por Abas na Barra Lateral:**
+2. **Navegação por 3 Abas na Barra Lateral:**
    - **Aba 1 — Visão Geral (`#viewVisaoGeral`):**
      - Exibe 3 cartões principais no topo: **Receitas no Período**, **Despesas no Período** e **Balanço do Período** (que também atualizam em tempo real caso algum filtro seja aplicado na seção de transações abaixo).
      - **Gráfico de Fluxo de Caixa Anual (Jan a Dez):** com seletores de cor personalizáveis para **Receitas** e **Despesas** (`#colorPickerIncome`, `#colorPickerExpense`) e botão **Padrão** (`localStorage` key: `minhas_financas_chart_colors`).
      - **Gráfico de Gastos por Categoria:** barras de progresso proporcionais às despesas do período/filtro.
-     - **Seção Parcelamentos no Período:** cartões visuais com barra de progresso e opção **"Ocultar parcelas já pagas"** (`#chkHidePaidInstallments`).
-     - **Seção Transações e Contas do Período:** mesmo design visual de cartões com barra de progresso, filtros de busca, banco e categoria.
-   - **Aba 2 — Filtros & Contas (`#viewFiltros`):**
-     - Painel de filtros combinados: **Mês**, **Ano**, **Banco/Conta**, **Categoria**, **Modalidade** (Todas, Somente Parcelados, Somente À Vista) e **Busca por texto**.
+     - **Seção Parcelamentos no Período:** cartões visuais com barra de progresso, opção **"Ocultar parcelas já pagas"** (`#chkHidePaidInstallments`), atalho para a **Central Quitar Dívidas** e **seleção múltipla de dívidas (`#periodBatchPayBar`)** para pagar mais de uma parcela do mês ao mesmo tempo.
+     - **Seção Transações e Contas do Período:** cartões com barra de progresso, filtros de busca, **Tipo (Receitas/Despesas)** (`#typeFilter`), banco e categoria.
+   - **Aba 2 — Quitar Dívidas (`#viewQuitarDividas`):**
+     - Central dedicada onde mostra **todas as contas parceladas (dívidas)** agrupadas por compra (`getGroupedInstallmentDebts` / `renderPayoffDebtsView`).
+     - Exibe 4 cartões de resumo: **Contas Parceladas Ativas**, **Total Já Pago / Adiantado**, **Falta Quitar (Todas as Dívidas)** e **Total Selecionado para Quitar**.
+     - Permite **selecionar mais de uma dívida para pagar juntas**: você pode marcar a caixinha de 2, 3 ou todas as dívidas inteiras, clicar em **"Selecionar 1ª parcela pendente de cada dívida"**, **"Selecionar tudo para Quitar Geral"**, ou marcar manualmente quais parcelas (`1/N` a `N/N`) de cada conta deseja quitar.
+   - **Aba 3 — Filtros & Contas (`#viewFiltros`):**
+     - Painel de filtros combinados: **Tipo (Receita / Despesa)** (`#tabFilterType`), **Mês**, **Ano**, **Banco/Conta**, **Categoria**, **Modalidade** (Todas, Somente Parcelados, Somente À Vista) e **Busca por texto**.
      - Exibe o cartão **Saldo Acumulado Geral** (soma geral de todas as receitas menos despesas cadastradas) ao lado dos cartões **Receitas (Filtro Aplicado)**, **Despesas (Filtro Aplicado)** e **Balanço do Filtro**.
+     - Inclui também barra de seleção múltipla (`#filterTabBatchPayBar`) para marcar e pagar várias dívidas filtradas de uma vez.
 
 3. **Lançamentos À Vista, Parcelados e Virada Automática de Ano:**
    - Modal de Nova/Editar Transação (`#transactionModal`) com botão alternador **À vista (1x)** / **Parcelado**.
@@ -36,12 +41,12 @@ Aplicação pessoal de controle financeiro (**Minhas Finanças**) criada em **HT
    - A função `addMonthsToPeriod(startYear, startMonth, offset)` distribui automaticamente as parcelas pelos meses seguintes, virando de Dezembro para Janeiro do próximo ano (e quantos anos forem necessários).
    - Suporte a 17 bancos brasileiros pré-cadastrados + opção **"+ Editar / Digitar outro banco ou conta..."** (`localStorage` key: `minhas_financas_custom_banks`).
 
-4. **Central de Detalhes, Adiantamento e Quitação de Parcelas (`#installmentDetailModal`):**
+4. **Central de Detalhes, Adiantamento e Quitação de Parcelas (`#installmentDetailModal` e `executeBatchPayForIds`):**
    - Ao clicar em qualquer parcela (ou no botão **"📋 Parcelas / Adiantar"**), abre o modal detalhado mostrando:
      - **Valor Total da Compra**, **Já Pago / Adiantado** e **Valor para Quitar Tudo**.
      - Barra de progresso real de quitação e lista de todas as parcelas (`1/N` até `N/N`).
-     - **Calculadora interativa de adiantamento:** ao selecionar uma ou várias parcelas (ou clicar em **"Selecionar todas pendentes (Quitar Tudo)"**), calcula na hora o valor total selecionado para pagar.
-     - Três modos ao pagar/adiantar parcelas selecionadas:
+     - **Calculadora interativa de adiantamento:** calcula na hora o valor total selecionado para pagar.
+     - Três modos ao pagar/adiantar parcelas selecionadas (tanto no modal individual quanto na seleção múltipla de dívidas):
        1. *Marcar como Paga (mantém no mês original)* — exibe selo verde `✅ Paga / Adiantada`.
        2. *Adiantar e puxar cobrança para o mês atual*.
        3. *Quitar e remover parcelas adiantadas da lista*.

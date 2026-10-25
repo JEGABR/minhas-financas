@@ -520,7 +520,16 @@
               </select>
             </div>
 
-            <div class="form-group form-group-search-span">
+            <div class="form-group">
+              <label for="tabFilterStatus">Situação / Status</label>
+              <select id="tabFilterStatus" class="select-control">
+                <option value="all">Todas (Em aberto + Pagas)</option>
+                <option value="open">Somente em Aberto (Pendentes)</option>
+                <option value="paid">Somente Já Pagas / Quitadas</option>
+              </select>
+            </div>
+
+            <div class="form-group form-group-search-span-2">
               <label for="tabFilterSearch">Busca por Nome / Conta</label>
               <input type="search" id="tabFilterSearch" class="input-control" placeholder="Ex.: Geladeira, Luz, Salário..." />
             </div>
@@ -564,7 +573,7 @@
             </div>
             <div class="kpi-value negative-text" id="tabKpiExpenses">R$ 0,00</div>
             <div class="kpi-trend" id="tabKpiExpenseSub">
-              <span>0 saídas no filtro</span>
+              <span>0 em aberto no filtro</span>
             </div>
           </article>
 
