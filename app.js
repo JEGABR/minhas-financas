@@ -1671,7 +1671,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // EVENTOS: SELEÇÃO MÚLTIPLA EM "PARCELAMENTOS NO PERÍODO"
   // ==========================================
-  document.getElementById('installmentsSummaryList').addEventListener('change', (e) => {
+  document.getElementById('installmentsSummaryList')?.addEventListener('change', (e) => {
     const chk = e.target.closest('[data-period-chk-id]');
     if (!chk) return;
     const id = Number(chk.getAttribute('data-period-chk-id'));
@@ -1683,18 +1683,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderInstallmentsSummary();
   });
 
-  document.getElementById('btnSelectAllPeriodInst').addEventListener('click', () => {
+  document.getElementById('btnSelectAllPeriodInst')?.addEventListener('click', () => {
     const { list } = getPeriodSummaryInstallmentsList();
     list.filter((t) => !t.isPaid).forEach((t) => selectedPeriodTxIds.add(t.id));
     renderInstallmentsSummary();
   });
 
-  document.getElementById('btnClearPeriodInst').addEventListener('click', () => {
+  document.getElementById('btnClearPeriodInst')?.addEventListener('click', () => {
     selectedPeriodTxIds.clear();
     renderInstallmentsSummary();
   });
 
-  document.getElementById('btnPayPeriodSelected').addEventListener('click', () => {
+  document.getElementById('btnPayPeriodSelected')?.addEventListener('click', () => {
     const mode = document.getElementById('periodBatchAdvanceMode').value;
     executeBatchPayForIds(selectedPeriodTxIds, mode);
   });
@@ -1978,12 +1978,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('categoryFilter').addEventListener('change', renderTransactionsList);
   document.getElementById('bankFilter').addEventListener('change', renderTransactionsList);
 
-  document.getElementById('installmentsSummaryList').addEventListener('click', handleCardActionClick);
+  document.getElementById('installmentsSummaryList')?.addEventListener('click', handleCardActionClick);
   document.getElementById('transactionsListContainer').addEventListener('click', handleCardActionClick);
   document.getElementById('tabFilteredListContainer').addEventListener('click', handleCardActionClick);
 
   // Filtro "Ocultar parcelas já pagas" e Escopo de visualização de Parcelamentos
-  document.getElementById('chkHidePaidInstallments').addEventListener('change', (e) => {
+  document.getElementById('chkHidePaidInstallments')?.addEventListener('change', (e) => {
     uiPrefs.hidePaidInstallments = e.target.checked;
     saveUiPrefs();
     renderInstallmentsSummary();
