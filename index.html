@@ -105,6 +105,31 @@
         </div>
       </header>
 
+      <!-- Barra do Agente de Lançamento Rápido -->
+      <section class="agent-bar-card">
+        <form id="agentCommandForm" class="agent-bar-form">
+          <div class="agent-badge-icon" title="Agente de Lançamento Rápido">🤖</div>
+          <input
+            type="text"
+            id="agentCommandInput"
+            class="agent-input"
+            placeholder='Digite um comando... Ex: "Coloque essa dívida Notebook de 3600 parcelado em 12 vezes no Nubank"'
+            autocomplete="off"
+          />
+          <button type="submit" class="btn-primary btn-agent-submit">Lançar com Agente</button>
+        </form>
+        <div class="agent-examples">
+          <span>Exemplos rápidos (clique para testar):</span>
+          <button type="button" class="agent-chip" data-example="Coloque essa dívida Geladeira de 3600 parcelado em 12 vezes no Nubank">"Dívida Geladeira 3600 em 12 vezes no Nubank"</button>
+          <button type="button" class="agent-chip" data-example="Coloque Celular em 10x de 250 no Itaú">"Celular em 10x de 250 no Itaú"</button>
+          <button type="button" class="agent-chip" data-example="Adicione Supermercado 420 à vista no Santander">"Supermercado 420 à vista no Santander"</button>
+        </div>
+        <div id="agentFeedback" class="agent-feedback hidden">
+          <span id="agentFeedbackText"></span>
+          <button type="button" id="btnUndoAgent" class="btn-undo hidden">Desfazer lançamento</button>
+        </div>
+      </section>
+
       <!-- KPI Cards -->
       <section class="kpi-grid" id="visao-geral">
         <article class="kpi-card">

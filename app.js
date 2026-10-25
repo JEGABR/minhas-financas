@@ -48,6 +48,236 @@ let userName = localStorage.getItem(USER_NAME_KEY) || 'Gabriel';
 let selectedMonth = '10';
 let selectedYear = 2026;
 let isInstallmentMode = false;
+let lastAgentBatchIds = [];
+
+/**
+ * Agente de Lançamento Rápido em Linguagem Natural (Português)
+ */
+function parseAndExecuteAgentCommand(rawInput) {
+  const text = rawInput.trim();
+  if (!text) return;
+
+  const lower = text.toLowerCase();
+
+  // 1. Detectar número de parcelas (ex: "em 12 vezes", "12x", "12 parcelas", "parcelado em 10")
+  let installments = 1;
+  let isParcelado = false;
+  let matchedInstallmentStr = '';
+
+  const parcelRegexes = [
+    /(?:parcelad[oa]\s+em\s+|dividid[oa]\s+em\s+|em\s+)?(\d{1,3})\s*(?:vezes|x|parcelas?)\b/i,
+    /\bparcelad[oa]\s+em\s+(\d{1,3})\b/i
+  ];
+
+  for (const rgx of parcelRegexes) {
+    const m = text.match(rgx);
+    if (m) {
+      installments = Math.max(2, parseInt(m[1], 10));
+      isParcelado = true;
+      matchedInstallmentStr = m[0];
+      break;
+    }
+  }
+
+  // Detectar se o valor informado é por parcela (ex: "10x de 250" ou "10 parcelas de R$ 200")
+  const isParcelValueMode = /(?:\d{1,3})\s*(?:vezes|x|parcelas?)\s+de\s+(?:r\$\s*)?\d/i.test(text);
+
+  // 2. Remover trecho da parcela para não confundir o número de parcelas com o valor em R$
+  let textWithoutInstallments = matchedInstallmentStr
+    ? text.replace(matchedInstallmentStr, ' ')
+    : text;
+
+  // 3. Detectar valor monetário (ex: R$ 1.200,50 | 3600 | 250,90)
+  let amount = 0;
+  let matchedAmountStr = '';
+  const amountMatch = textWithoutInstallments.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i);
+
+  if (amountMatch) {
+    matchedAmountStr = amountMatch[0];
+    let numStr = amountMatch[1];
+    if (numStr.includes('.') && numStr.includes(',')) {
+      numStr = numStr.replace(/\./g, '').replace(',', '.');
+    } else if (numStr.includes(',')) {
+      numStr = numStr.replace(',', '.');
+    }
+    amount = parseFloat(numStr) || 0;
+  }
+
+  // 4. Detectar Banco / Conta
+  const bankAliases = [
+    { keywords: ['nubank', 'nu'], bank: 'Nubank' },
+    { keywords: ['itaú', 'itau'], bank: 'Itaú' },
+    { keywords: ['bradesco'], bank: 'Bradesco' },
+    { keywords: ['banco do brasil', 'bb'], bank: 'Banco do Brasil' },
+    { keywords: ['caixa econômica', 'caixa economica', 'caixa'], bank: 'Caixa Econômica' },
+    { keywords: ['santander'], bank: 'Santander' },
+    { keywords: ['banco inter', 'inter'], bank: 'Banco Inter' },
+    { keywords: ['c6 bank', 'c6'], bank: 'C6 Bank' },
+    { keywords: ['btg pactual', 'btg'], bank: 'BTG Pactual' },
+    { keywords: ['picpay'], bank: 'PicPay' },
+    { keywords: ['mercado pago'], bank: 'Mercado Pago' },
+    { keywords: ['sicredi'], bank: 'Sicredi' },
+    { keywords: ['sicoob'], bank: 'Sicoob' },
+    { keywords: ['xp investimentos', 'xp'], bank: 'XP Investimentos' },
+    { keywords: ['neon'], bank: 'Neon' },
+    { keywords: ['pagbank', 'pagseguro'], bank: 'PagBank' },
+    { keywords: ['dinheiro', 'carteira', 'espécie'], bank: 'Dinheiro / Carteira' }
+  ];
+
+  let detectedBank = 'Nubank';
+  for (const item of bankAliases) {
+    const found = item.keywords.some((kw) => new RegExp(`\\b${kw}\\b`, 'i').test(lower));
+    if (found) {
+      detectedBank = item.bank;
+      break;
+    }
+  }
+
+  // 5. Detectar Tipo (Receita vs Despesa) e Categoria
+  const isIncome = /\b(recebi|sal[áa]rio|ganhei|receita|entrada|freelance|rendimento)\b/i.test(lower);
+  const type = isIncome ? 'income' : 'expense';
+  let category = 'Compras';
+
+  if (isIncome) {
+    category = 'Receita';
+  } else if (/\b(mercado|supermercado|ifood|restaurante|lanche|alimenta[çc][ãa]o|padaria|feira|comida)\b/i.test(lower)) {
+    category = 'Alimentação';
+  } else if (/\b(aluguel|condom[íi]nio|luz|energia|[áa]gua|internet|moradia|casa|g[áa]s|iptu)\b/i.test(lower)) {
+    category = 'Moradia';
+  } else if (/\b(uber|99|gasolina|combust[íi]vel|transporte|[ôo]nibus|metr[ôo]|carro|ipva|oficina)\b/i.test(lower)) {
+    category = 'Transporte';
+  } else if (/\b(netflix|spotify|assinatura|mensalidade|cloud|streaming|plano)\b/i.test(lower)) {
+    category = 'Assinaturas';
+  } else if (/\b(academia|farm[áa]cia|m[ée]dico|sa[úu]de|lazer|cinema|viagem|jogo)\b/i.test(lower)) {
+    category = 'Lazer';
+  } else if (/\b(curso|faculdade|escola|livro|educa[çc][ãa]o)\b/i.test(lower)) {
+    category = 'Educação';
+  }
+
+  // 6. Extrair a Descrição limpa
+  let cleanDesc = textWithoutInstallments
+    .replace(matchedAmountStr, ' ')
+    .replace(/\b(coloque|coloca|adicione|adiciona|lan[çc]e|lan[çc]a|registre|registra|comprei|paguei|recebi|essa|esse|esta|este|uma|um|d[íi]vida|conta|gasto|despesa|compra|parcelad[oa]|dividid[oa]|avista|[àa]\s*vista|no\s+valor\s+de|valor\s+de|por|reais|real|r\$|no\s+banco|na\s+conta|no\s+cart[ãa]o|no|na|em|de|do|da|vezes|parcelas?)\b/gi, ' ');
+
+  bankAliases.forEach((b) => {
+    b.keywords.forEach((kw) => {
+      cleanDesc = cleanDesc.replace(new RegExp(`\\b${kw}\\b`, 'gi'), ' ');
+    });
+  });
+
+  cleanDesc = cleanDesc.replace(/\s+/g, ' ').trim();
+  if (!cleanDesc) {
+    cleanDesc = isIncome ? 'Receita' : isParcelado ? 'Dívida Parcelada' : 'Despesa';
+  } else {
+    cleanDesc = cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1);
+  }
+
+  const startMonthNum = selectedMonth === 'all' ? 10 : parseInt(selectedMonth, 10);
+  const startYearNum = selectedYear;
+
+  // Se o usuário não digitou o valor na frase, abre o modal já configurado com as parcelas preenchidas!
+  if (amount <= 0) {
+    openNewModal();
+    document.getElementById('txDescription').value = cleanDesc;
+    document.getElementById('txType').value = type;
+    document.getElementById('txCategory').value = category;
+    document.getElementById('txAccount').value = detectedBank;
+    if (isParcelado) {
+      document.getElementById('btnModeParcelado').click();
+      document.getElementById('txInstallments').value = installments;
+      updateInstallmentPreview();
+    }
+    setTimeout(() => document.getElementById('txAmount').focus(), 50);
+    showAgentFeedback(
+      `🤖 Preparei o lançamento <strong>"${cleanDesc}"</strong> ${isParcelado ? `parcelado em <strong>${installments}x</strong>` : 'à vista'} (${detectedBank}). Digite apenas o valor em R$ para confirmar!`,
+      false
+    );
+    return;
+  }
+
+  // Criar as transações diretamente
+  lastAgentBatchIds = [];
+
+  if (!isParcelado) {
+    const period = addMonthsToPeriod(startYearNum, startMonthNum, 0);
+    const id = Date.now();
+    lastAgentBatchIds.push(id);
+    transactions.push({
+      id,
+      description: cleanDesc,
+      baseDescription: cleanDesc,
+      amount: Math.round(amount * 100) / 100,
+      type,
+      category,
+      account: detectedBank,
+      year: period.year,
+      month: period.month,
+      periodKey: period.periodKey,
+      isInstallment: false,
+      installmentNumber: 1,
+      totalInstallments: 1
+    });
+
+    saveTransactions();
+    refreshDashboard();
+    showAgentFeedback(
+      `🤖 <strong>Agente:</strong> Lancei <strong>"${cleanDesc}"</strong> à vista no valor de <strong>${formatBRL(amount)}</strong> (${detectedBank} • ${category}) em ${formatPeriodLabel(period.periodKey)}.`,
+      true
+    );
+  } else {
+    const parcelAmount = isParcelValueMode
+      ? Math.round(amount * 100) / 100
+      : Math.round((amount / installments) * 100) / 100;
+    const totalAmount = Math.round(parcelAmount * installments * 100) / 100;
+    const groupId = `grp_${Date.now()}`;
+
+    for (let i = 0; i < installments; i++) {
+      const period = addMonthsToPeriod(startYearNum, startMonthNum, i);
+      const id = Date.now() + i;
+      lastAgentBatchIds.push(id);
+      transactions.push({
+        id,
+        groupId,
+        description: `${cleanDesc} (${i + 1}/${installments})`,
+        baseDescription: cleanDesc,
+        amount: parcelAmount,
+        type,
+        category,
+        account: detectedBank,
+        year: period.year,
+        month: period.month,
+        periodKey: period.periodKey,
+        isInstallment: true,
+        installmentNumber: i + 1,
+        totalInstallments: installments
+      });
+    }
+
+    const firstP = addMonthsToPeriod(startYearNum, startMonthNum, 0);
+    const lastP = addMonthsToPeriod(startYearNum, startMonthNum, installments - 1);
+
+    saveTransactions();
+    refreshDashboard();
+    showAgentFeedback(
+      `🤖 <strong>Agente:</strong> Lancei <strong>"${cleanDesc}"</strong> parcelado em <strong>${installments}x de ${formatBRL(parcelAmount)}</strong> (Total: ${formatBRL(totalAmount)}) no <strong>${detectedBank}</strong> — de ${formatPeriodLabel(firstP.periodKey)} até ${formatPeriodLabel(lastP.periodKey)}!`,
+      true
+    );
+  }
+}
+
+function showAgentFeedback(htmlText, canUndo) {
+  const box = document.getElementById('agentFeedback');
+  const textEl = document.getElementById('agentFeedbackText');
+  const undoBtn = document.getElementById('btnUndoAgent');
+
+  textEl.innerHTML = htmlText;
+  box.classList.remove('hidden');
+  if (canUndo && lastAgentBatchIds.length > 0) {
+    undoBtn.classList.remove('hidden');
+  } else {
+    undoBtn.classList.add('hidden');
+  }
+}
 
 function saveTransactions() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
@@ -459,6 +689,36 @@ function openEditModal(txId) {
 document.addEventListener('DOMContentLoaded', () => {
   renderUserName();
   refreshDashboard();
+
+  // Eventos do Agente de Lançamento Rápido
+  const agentForm = document.getElementById('agentCommandForm');
+  const agentInput = document.getElementById('agentCommandInput');
+
+  agentForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const cmd = agentInput.value.trim();
+    if (!cmd) return;
+    parseAndExecuteAgentCommand(cmd);
+    agentInput.value = '';
+  });
+
+  document.querySelectorAll('.agent-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const example = chip.getAttribute('data-example');
+      agentInput.value = example;
+      agentInput.focus();
+    });
+  });
+
+  document.getElementById('btnUndoAgent').addEventListener('click', () => {
+    if (lastAgentBatchIds.length > 0) {
+      transactions = transactions.filter((t) => !lastAgentBatchIds.includes(t.id));
+      lastAgentBatchIds = [];
+      saveTransactions();
+      refreshDashboard();
+      showAgentFeedback('🤖 Último lançamento do agente foi desfeito com sucesso.', false);
+    }
+  });
 
   // Editar nome do usuário no perfil
   const nameEditBox = document.getElementById('userNameEditBox');
