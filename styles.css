@@ -1,4 +1,4 @@
-:root,
+﻿:root,
 [data-theme="dark"] {
   color-scheme: dark;
   --bg-app: #090d16;
@@ -397,6 +397,15 @@ body {
   font-size: 0.88rem;
   font-family: inherit;
   outline: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.select-control {
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .select-control option {
@@ -1236,6 +1245,7 @@ body {
   box-shadow: var(--shadow-card);
   max-height: 92vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .modal-header {
@@ -1255,6 +1265,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+  width: 100%;
 }
 
 .form-group label {
@@ -1265,8 +1277,9 @@ body {
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+  width: 100%;
 }
 
 .payment-mode-toggle {

@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'minhas_financas_v2_tx';
+﻿const STORAGE_KEY = 'minhas_financas_v2_tx';
 const USER_NAME_KEY = 'minhas_financas_username';
 const CUSTOM_BANKS_KEY = 'minhas_financas_custom_banks';
 const CHART_COLORS_KEY = 'minhas_financas_chart_colors';
@@ -558,7 +558,7 @@ function populateBankSelectors() {
   const currentModalVal = txAccount.value;
   txAccount.innerHTML =
     banks.map((b) => `<option value="${b}">${b}</option>`).join('') +
-    `<option value="__custom__">+ Editar / Digitar outro banco ou conta...</option>`;
+    `<option value="__custom__">+ Outro banco ou conta...</option>`;
   if (banks.includes(currentModalVal)) {
     txAccount.value = currentModalVal;
   }
@@ -1559,19 +1559,33 @@ function openEditModal(txId) {
   document.getElementById('txAmount').value = tx.amount;
   document.getElementById('txType').value = tx.type;
   document.getElementById('txCategory').value = tx.category;
-  document.getElementById('txAccount').value = tx.account;
+
+  const txAccountEl = document.getElementById('txAccount');
+  txAccountEl.value = tx.account;
+  if (txAccountEl.value !== tx.account) {
+    const opt = document.createElement('option');
+    opt.value = tx.account;
+    opt.textContent = tx.account;
+    txAccountEl.insertBefore(opt, txAccountEl.lastElementChild);
+    txAccountEl.value = tx.account;
+  }
   document.getElementById('customAccountGroup').classList.add('hidden');
   document.getElementById('txStartMonth').value = tx.month;
   document.getElementById('txStartYear').value = tx.year;
 
-  document.getElementById('paymentModeGroup').classList.add('hidden');
-  document.getElementById('installmentFields').classList.add('hidden');
-
   if (tx.isInstallment && tx.groupId) {
+    document.getElementById('paymentModeGroup').classList.add('hidden');
+    document.getElementById('installmentFields').classList.add('hidden');
     document.getElementById('editScopeBox').classList.remove('hidden');
     document.getElementById('txEditScope').value = 'all';
   } else {
+    // Permite parcelar uma transação que era à vista
     document.getElementById('editScopeBox').classList.add('hidden');
+    document.getElementById('paymentModeGroup').classList.remove('hidden');
+    document.getElementById('txInstallments').value = '2';
+    document.getElementById('txValueMode').value = 'total';
+    document.getElementById('btnModeAvista').click();
+    updateInstallmentPreview();
   }
 
   document.getElementById('transactionModal').classList.remove('hidden');
@@ -2247,32 +2261,72 @@ document.addEventListener('DOMContentLoaded', () => {
       const idNum = Number(editingId);
       const targetTx = transactions.find((t) => t.id === idNum);
       if (targetTx) {
-        const editScope = document.getElementById('txEditScope').value;
-        const period = addMonthsToPeriod(startYear, startMonth, 0);
+        // Se era à vista e o usuário optou por converter em Parcelado:
+        if (!targetTx.isInstallment && isInstallmentMode) {
+          const count = Math.max(2, parseInt(document.getElementById('txInstallments').value, 10) || 2);
+          const valueMode = document.getElementById('txValueMode').value;
+          const parcelAmount =
+            valueMode === 'total'
+              ? Math.round((rawAmount / count) * 100) / 100
+              : Math.round(rawAmount * 100) / 100;
 
-        if (targetTx.isInstallment && targetTx.groupId && editScope === 'all') {
-          transactions.forEach((t) => {
-            if (t.groupId === targetTx.groupId) {
-              t.baseDescription = baseDescription;
-              t.description = `${baseDescription} (${t.installmentNumber}/${t.totalInstallments})`;
-              t.amount = Math.round(rawAmount * 100) / 100;
-              t.type = type;
-              t.category = category;
-              t.account = account;
-            }
-          });
+          const groupId = `grp_${Date.now()}`;
+          const wasPaid = Boolean(targetTx.isPaid);
+          const paidAt = targetTx.paidAt || null;
+
+          // Remove o lançamento original à vista
+          transactions = transactions.filter((t) => t.id !== idNum);
+
+          // Cria a sequência de parcelas
+          for (let i = 0; i < count; i++) {
+            const period = addMonthsToPeriod(startYear, startMonth, i);
+            transactions.push({
+              id: Date.now() + i,
+              groupId,
+              description: `${baseDescription} (${i + 1}/${count})`,
+              baseDescription,
+              amount: parcelAmount,
+              type,
+              category,
+              account,
+              year: period.year,
+              month: period.month,
+              periodKey: period.periodKey,
+              isInstallment: true,
+              installmentNumber: i + 1,
+              totalInstallments: count,
+              isPaid: i === 0 && wasPaid,
+              paidAt: i === 0 && wasPaid ? paidAt : null
+            });
+          }
         } else {
-          targetTx.baseDescription = baseDescription;
-          targetTx.description = targetTx.isInstallment
-            ? `${baseDescription} (${targetTx.installmentNumber}/${targetTx.totalInstallments})`
-            : baseDescription;
-          targetTx.amount = Math.round(rawAmount * 100) / 100;
-          targetTx.type = type;
-          targetTx.category = category;
-          targetTx.account = account;
-          targetTx.year = period.year;
-          targetTx.month = period.month;
-          targetTx.periodKey = period.periodKey;
+          const editScope = document.getElementById('txEditScope').value;
+          const period = addMonthsToPeriod(startYear, startMonth, 0);
+
+          if (targetTx.isInstallment && targetTx.groupId && editScope === 'all') {
+            transactions.forEach((t) => {
+              if (t.groupId === targetTx.groupId) {
+                t.baseDescription = baseDescription;
+                t.description = `${baseDescription} (${t.installmentNumber}/${t.totalInstallments})`;
+                t.amount = Math.round(rawAmount * 100) / 100;
+                t.type = type;
+                t.category = category;
+                t.account = account;
+              }
+            });
+          } else {
+            targetTx.baseDescription = baseDescription;
+            targetTx.description = targetTx.isInstallment
+              ? `${baseDescription} (${targetTx.installmentNumber}/${targetTx.totalInstallments})`
+              : baseDescription;
+            targetTx.amount = Math.round(rawAmount * 100) / 100;
+            targetTx.type = type;
+            targetTx.category = category;
+            targetTx.account = account;
+            targetTx.year = period.year;
+            targetTx.month = period.month;
+            targetTx.periodKey = period.periodKey;
+          }
         }
       }
     } else if (!isInstallmentMode) {
