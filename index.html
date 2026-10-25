@@ -200,27 +200,27 @@
 
           <article class="kpi-card">
             <div class="kpi-top">
-              <span class="kpi-label" id="kpiExpensesLabel">Despesas no Período</span>
+              <span class="kpi-label" id="kpiExpensesLabel">Despesas no Período (Devo)</span>
               <span class="kpi-icon kpi-icon-negative">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
               </span>
             </div>
             <div class="kpi-value negative-text" id="kpiExpenses">R$ 0,00</div>
             <div class="kpi-trend" id="kpiExpenseSubtext">
-              <span>0 saídas registradas</span>
+              <span>0 em aberto</span>
             </div>
           </article>
 
           <article class="kpi-card">
             <div class="kpi-top">
-              <span class="kpi-label" id="kpiBalanceLabel">Balanço do Período</span>
+              <span class="kpi-label" id="kpiBalanceLabel">Total do Mês (Despesas)</span>
               <span class="kpi-icon kpi-icon-accent">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
               </span>
             </div>
             <div class="kpi-value" id="kpiSavingsAmount">R$ 0,00</div>
             <div class="kpi-trend" id="kpiSavingsRate">
-              <span>Taxa de economia: 0%</span>
+              <span>0 contas no total (pagas e a pagar)</span>
             </div>
           </article>
         </section>
@@ -636,7 +636,16 @@
           </div>
         </div>
 
-        <!-- Campos extras quando Parcelado estiver ativo -->
+        <!-- Opção ao editar uma parcela existente -->
+        <div id="editScopeBox" class="installment-box hidden">
+          <label for="txEditScope">Este item faz parte de um parcelamento. Como deseja aplicar a edição?</label>
+          <select id="txEditScope" class="select-control">
+            <option value="all">Atualizar TODAS as parcelas do parcelamento</option>
+            <option value="single">Atualizar apenas a parcela deste mês</option>
+          </select>
+        </div>
+
+        <!-- Campos de Parcelamento (novos ou edição de parcelas) -->
         <div id="installmentFields" class="installment-box hidden">
           <div class="form-row">
             <div class="form-group">
@@ -654,15 +663,6 @@
           <div class="installment-preview" id="installmentPreview">
             2x de R$ 0,00 (Total: R$ 0,00)
           </div>
-        </div>
-
-        <!-- Opção ao editar uma parcela existente -->
-        <div id="editScopeBox" class="installment-box hidden">
-          <label for="txEditScope">Este item faz parte de um parcelamento. Como deseja aplicar a edição?</label>
-          <select id="txEditScope" class="select-control">
-            <option value="single">Atualizar apenas a parcela deste mês</option>
-            <option value="all">Atualizar nome, valor, banco e categoria em TODAS as parcelas</option>
-          </select>
         </div>
 
         <div class="form-row">

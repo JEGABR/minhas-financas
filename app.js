@@ -80,6 +80,225 @@ function saveUiPrefs() {
   localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs));
 }
 
+/* ==========================================
+   SISTEMA DE FILTRO MULTI-SELEÇÃO
+   ========================================== */
+const multiSelectInstances = {};
+
+function getSelectedFilterValues(selectId) {
+  if (multiSelectInstances[selectId]) {
+    return multiSelectInstances[selectId].getSelected();
+  }
+  const el = document.getElementById(selectId);
+  if (!el) return [];
+  if (el.value === 'all') return [];
+  return [el.value];
+}
+
+function createMultiSelect({ selectId, allLabel, placeholder, onChange }) {
+  const originalSelect = document.getElementById(selectId);
+  if (!originalSelect) return null;
+
+  const options = [];
+  Array.from(originalSelect.options).forEach((opt) => {
+    if (opt.value && opt.value !== 'all' && opt.value !== '__custom__') {
+      options.push({ value: opt.value, label: opt.textContent.trim() });
+    }
+  });
+
+  originalSelect.style.display = 'none';
+
+  let wrap = document.getElementById(`${selectId}_ms_wrap`);
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = `${selectId}_ms_wrap`;
+    wrap.className = 'multiselect-dropdown';
+    originalSelect.parentNode.insertBefore(wrap, originalSelect);
+  }
+
+  const state = {
+    selected: new Set(),
+    options: options,
+    allLabel: allLabel || 'Todas as categorias',
+    placeholder: placeholder || 'Filtro'
+  };
+
+  function updateTriggerText() {
+    const triggerText = wrap.querySelector('.multiselect-trigger-text');
+    const badge = wrap.querySelector('.multiselect-badge');
+    if (!triggerText || !badge) return;
+
+    const selCount = state.selected.size;
+
+    if (selCount === 0 || selCount === state.options.length) {
+      triggerText.textContent = state.allLabel;
+      badge.style.display = 'none';
+      wrap.classList.remove('has-selection');
+    } else if (selCount <= 2) {
+      const names = Array.from(state.selected)
+        .map((val) => {
+          const opt = state.options.find((o) => o.value === val);
+          return opt ? opt.label : val;
+        })
+        .join(', ');
+      triggerText.textContent = names;
+      badge.style.display = 'none';
+      wrap.classList.add('has-selection');
+    } else {
+      triggerText.textContent = `${selCount} selecionadas`;
+      badge.textContent = String(selCount);
+      badge.style.display = 'inline-block';
+      wrap.classList.add('has-selection');
+    }
+  }
+
+  function renderMenu() {
+    wrap.innerHTML = `
+      <button type="button" class="select-control multiselect-trigger" aria-haspopup="listbox">
+        <span class="multiselect-trigger-text">${state.allLabel}</span>
+        <span class="multiselect-badge" style="display:none">0</span>
+        <span class="multiselect-arrow">▾</span>
+      </button>
+      <div class="multiselect-menu hidden">
+        <div class="multiselect-header">
+          <button type="button" class="btn-ms-action btn-ms-all">Selecionar todas</button>
+          <button type="button" class="btn-ms-action btn-ms-clear">Limpar</button>
+        </div>
+        <div class="multiselect-options">
+          ${state.options
+            .map(
+              (opt) => `
+            <label class="multiselect-option">
+              <input type="checkbox" value="${opt.value}" ${state.selected.has(opt.value) ? 'checked' : ''} />
+              <span>${opt.label}</span>
+            </label>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    updateTriggerText();
+
+    const triggerBtn = wrap.querySelector('.multiselect-trigger');
+    const menu = wrap.querySelector('.multiselect-menu');
+
+    triggerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.multiselect-dropdown.open').forEach((other) => {
+        if (other !== wrap) {
+          other.classList.remove('open');
+          other.querySelector('.multiselect-menu')?.classList.add('hidden');
+        }
+      });
+      const isOpen = !menu.classList.contains('hidden');
+      menu.classList.toggle('hidden', isOpen);
+      wrap.classList.toggle('open', !isOpen);
+    });
+
+    menu.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    wrap.querySelectorAll('.multiselect-options input[type="checkbox"]').forEach((chk) => {
+      chk.addEventListener('change', () => {
+        if (chk.checked) {
+          state.selected.add(chk.value);
+        } else {
+          state.selected.delete(chk.value);
+        }
+        updateTriggerText();
+        if (onChange) onChange(Array.from(state.selected));
+      });
+    });
+
+    wrap.querySelector('.btn-ms-all').addEventListener('click', () => {
+      state.options.forEach((opt) => state.selected.add(opt.value));
+      wrap.querySelectorAll('.multiselect-options input[type="checkbox"]').forEach((chk) => (chk.checked = true));
+      updateTriggerText();
+      if (onChange) onChange(Array.from(state.selected));
+    });
+
+    wrap.querySelector('.btn-ms-clear').addEventListener('click', () => {
+      state.selected.clear();
+      wrap.querySelectorAll('.multiselect-options input[type="checkbox"]').forEach((chk) => (chk.checked = false));
+      updateTriggerText();
+      if (onChange) onChange([]);
+    });
+  }
+
+  renderMenu();
+
+  const instance = {
+    setOptions(newOptions) {
+      state.options = newOptions;
+      const valid = new Set(newOptions.map((o) => o.value));
+      state.selected = new Set(Array.from(state.selected).filter((v) => valid.has(v)));
+      renderMenu();
+    },
+    getSelected() {
+      if (state.selected.size === 0 || state.selected.size === state.options.length) {
+        return [];
+      }
+      return Array.from(state.selected);
+    },
+    setSelected(values) {
+      state.selected = new Set(values);
+      wrap.querySelectorAll('.multiselect-options input[type="checkbox"]').forEach((chk) => {
+        chk.checked = state.selected.has(chk.value);
+      });
+      updateTriggerText();
+    },
+    clear() {
+      state.selected.clear();
+      wrap.querySelectorAll('.multiselect-options input[type="checkbox"]').forEach((chk) => (chk.checked = false));
+      updateTriggerText();
+    }
+  };
+
+  multiSelectInstances[selectId] = instance;
+  return instance;
+}
+
+function initAllMultiSelects() {
+  createMultiSelect({
+    selectId: 'categoryFilter',
+    allLabel: 'Todas as categorias',
+    onChange: () => renderTransactionsList()
+  });
+
+  createMultiSelect({
+    selectId: 'bankFilter',
+    allLabel: 'Todos os bancos',
+    onChange: () => renderTransactionsList()
+  });
+
+  createMultiSelect({
+    selectId: 'payoffCategoryFilter',
+    allLabel: 'Todas as categorias',
+    onChange: () => renderPayoffDebtsView()
+  });
+
+  createMultiSelect({
+    selectId: 'payoffBankFilter',
+    allLabel: 'Todos os bancos',
+    onChange: () => renderPayoffDebtsView()
+  });
+
+  createMultiSelect({
+    selectId: 'tabFilterCategory',
+    allLabel: 'Todas as categorias',
+    onChange: () => renderFilterTabView()
+  });
+
+  createMultiSelect({
+    selectId: 'tabFilterBank',
+    allLabel: 'Todos os bancos',
+    onChange: () => renderFilterTabView()
+  });
+}
+
 // Conjuntos de IDs selecionados para pagar/quitar múltiplas dívidas
 let selectedPayoffTxIds = new Set();
 let selectedPeriodTxIds = new Set();
@@ -562,6 +781,13 @@ function populateBankSelectors() {
   if (banks.includes(currentModalVal)) {
     txAccount.value = currentModalVal;
   }
+
+  // Atualiza opções nos MultiSelects de Banco
+  ['bankFilter', 'payoffBankFilter', 'tabFilterBank'].forEach((id) => {
+    if (multiSelectInstances[id]) {
+      multiSelectInstances[id].setOptions(banks.map((b) => ({ value: b, label: b })));
+    }
+  });
 }
 
 function getPeriodTransactions() {
@@ -576,16 +802,16 @@ function getPeriodTransactions() {
 function getMainFilteredTransactions() {
   const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
   const typeFilter = document.getElementById('typeFilter')?.value || 'all';
-  const catFilter = document.getElementById('categoryFilter').value;
-  const bankFilter = document.getElementById('bankFilter').value;
+  const catFilter = getSelectedFilterValues('categoryFilter');
+  const bankFilter = getSelectedFilterValues('bankFilter');
 
   return getPeriodTransactions().filter((t) => {
     const matchesSearch =
       t.description.toLowerCase().includes(searchQuery) ||
       t.account.toLowerCase().includes(searchQuery);
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
-    const matchesCat = catFilter === 'all' || t.category === catFilter;
-    const matchesBank = bankFilter === 'all' || t.account === bankFilter;
+    const matchesCat = catFilter.length === 0 || catFilter.includes(t.category);
+    const matchesBank = bankFilter.length === 0 || bankFilter.includes(t.account);
     return matchesSearch && matchesType && matchesCat && matchesBank;
   });
 }
@@ -593,22 +819,23 @@ function getMainFilteredTransactions() {
 function hasActiveMainFilter() {
   const searchQuery = document.getElementById('searchInput').value.trim();
   const typeFilter = document.getElementById('typeFilter')?.value || 'all';
-  const catFilter = document.getElementById('categoryFilter').value;
-  const bankFilter = document.getElementById('bankFilter').value;
-  return searchQuery !== '' || typeFilter !== 'all' || catFilter !== 'all' || bankFilter !== 'all';
+  const catFilter = getSelectedFilterValues('categoryFilter');
+  const bankFilter = getSelectedFilterValues('bankFilter');
+  return searchQuery !== '' || typeFilter !== 'all' || catFilter.length > 0 || bankFilter.length > 0;
 }
 
 function calculateSummary(list) {
   const incomeList = list.filter((t) => t.type === 'income');
   const expenseList = list.filter((t) => t.type === 'expense');
 
-  // Apenas despesas em aberto (não pagas / pendentes) entram no total de Despesas em aberto
+  // Apenas despesas em aberto (não pagas / pendentes) entram no total de Despesas a pagar (quanto devo)
   const openExpenseList = expenseList.filter((t) => !t.isPaid);
   const paidExpenseList = expenseList.filter((t) => Boolean(t.isPaid));
 
   const income = incomeList.reduce((acc, t) => acc + t.amount, 0);
-  const expenses = openExpenseList.reduce((acc, t) => acc + t.amount, 0);
+  const expenses = openExpenseList.reduce((acc, t) => acc + t.amount, 0); // quanto eu devo (em aberto)
   const paidExpenses = paidExpenseList.reduce((acc, t) => acc + t.amount, 0);
+  const totalExpenses = expenseList.reduce((acc, t) => acc + t.amount, 0); // total do mês (mesmo que já pagas)
   const netSavings = income - expenses;
   const savingsRate = income > 0 ? Math.round((netSavings / income) * 100) : 0;
 
@@ -621,23 +848,36 @@ function calculateSummary(list) {
     income,
     expenses,
     paidExpenses,
+    totalExpenses,
     netSavings,
     savingsRate,
     incomeCount: incomeList.length,
     expenseCount: openExpenseList.length,
     paidExpenseCount: paidExpenseList.length,
+    totalExpenseCount: expenseList.length,
     byCategory
   };
 }
 
 function renderKPIs() {
   const filteredList = getMainFilteredTransactions();
-  const { income, expenses, paidExpenses, netSavings, savingsRate, incomeCount, expenseCount, paidExpenseCount } = calculateSummary(filteredList);
+  const {
+    income,
+    expenses,
+    paidExpenses,
+    totalExpenses,
+    totalExpenseCount,
+    netSavings,
+    savingsRate,
+    incomeCount,
+    expenseCount,
+    paidExpenseCount
+  } = calculateSummary(filteredList);
   const isFiltered = hasActiveMainFilter();
 
   document.getElementById('kpiIncomeLabel').textContent = isFiltered ? 'Receitas (Filtro Aplicado)' : 'Receitas no Período';
-  document.getElementById('kpiExpensesLabel').textContent = isFiltered ? 'Despesas (Filtro Aplicado)' : 'Despesas no Período';
-  document.getElementById('kpiBalanceLabel').textContent = isFiltered ? 'Balanço (Filtro Aplicado)' : 'Balanço do Período';
+  document.getElementById('kpiExpensesLabel').textContent = isFiltered ? 'Despesas a Pagar (Devo)' : 'Despesas no Período (Devo)';
+  document.getElementById('kpiBalanceLabel').textContent = isFiltered ? 'Total de Despesas (Filtro)' : 'Total do Mês (Despesas)';
 
   document.getElementById('kpiIncome').textContent = formatBRL(income);
   document.getElementById('kpiIncomeCount').textContent = `${incomeCount} entrada(s) ${isFiltered ? 'no filtro' : 'no período'}`;
@@ -645,13 +885,15 @@ function renderKPIs() {
   document.getElementById('kpiExpenses').textContent = formatBRL(expenses);
   document.getElementById('kpiExpenseSubtext').textContent =
     paidExpenseCount > 0
-      ? `${expenseCount} em aberto (Já pago: ${formatBRL(paidExpenses)})`
+      ? `${expenseCount} em aberto (${formatBRL(paidExpenses)} já pagos)`
       : `${expenseCount} em aberto ${isFiltered ? 'no filtro' : 'no período'}`;
 
-  const savingsEl = document.getElementById('kpiSavingsAmount');
-  savingsEl.textContent = formatBRL(netSavings);
-  savingsEl.className = `kpi-value ${netSavings > 0 ? 'positive-text' : netSavings < 0 ? 'negative-text' : ''}`;
-  document.getElementById('kpiSavingsRate').textContent = `Taxa de economia: ${savingsRate}%`;
+  // Card 3: Substitui o balanço antigo pelo Total do Mês (mostra o total mesmo de contas já pagas)
+  const totalMonthEl = document.getElementById('kpiSavingsAmount');
+  totalMonthEl.textContent = formatBRL(totalExpenses);
+  totalMonthEl.className = 'kpi-value';
+  document.getElementById('kpiSavingsRate').textContent =
+    `${totalExpenseCount} conta(s) no total (${paidExpenseCount} pagas, ${expenseCount} a pagar)`;
 
   const periodName =
     selectedMonth === 'all'
@@ -871,16 +1113,16 @@ function getPeriodSummaryInstallmentsList() {
 
   const searchQuery = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
   const typeFilter = document.getElementById('typeFilter')?.value || 'all';
-  const catFilter = document.getElementById('categoryFilter')?.value || 'all';
-  const bankFilter = document.getElementById('bankFilter')?.value || 'all';
+  const catFilter = getSelectedFilterValues('categoryFilter');
+  const bankFilter = getSelectedFilterValues('bankFilter');
 
   const matchesMainFilters = (t) => {
     const matchesSearch =
       t.description.toLowerCase().includes(searchQuery) ||
       t.account.toLowerCase().includes(searchQuery);
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
-    const matchesCat = catFilter === 'all' || t.category === catFilter;
-    const matchesBank = bankFilter === 'all' || t.account === bankFilter;
+    const matchesCat = catFilter.length === 0 || catFilter.includes(t.category);
+    const matchesBank = bankFilter.length === 0 || bankFilter.includes(t.account);
     return matchesSearch && matchesType && matchesCat && matchesBank;
   };
 
@@ -1013,23 +1255,23 @@ function getGroupedInstallmentDebts() {
 
 function hasActivePayoffFilter() {
   const searchQ = (document.getElementById('payoffSearchInput')?.value || '').trim();
-  const bankF = document.getElementById('payoffBankFilter')?.value || 'all';
-  const catF = document.getElementById('payoffCategoryFilter')?.value || 'all';
+  const bankF = getSelectedFilterValues('payoffBankFilter');
+  const catF = getSelectedFilterValues('payoffCategoryFilter');
   const statusF = document.getElementById('payoffStatusFilter')?.value || 'pending';
-  return searchQ !== '' || bankF !== 'all' || catF !== 'all' || statusF !== 'pending';
+  return searchQ !== '' || bankF.length > 0 || catF.length > 0 || statusF !== 'pending';
 }
 
 function getFilteredPayoffDebtGroups() {
   const allDebtGroups = getGroupedInstallmentDebts();
   const searchQ = (document.getElementById('payoffSearchInput')?.value || '').toLowerCase().trim();
-  const bankF = document.getElementById('payoffBankFilter')?.value || 'all';
-  const catF = document.getElementById('payoffCategoryFilter')?.value || 'all';
+  const bankF = getSelectedFilterValues('payoffBankFilter');
+  const catF = getSelectedFilterValues('payoffCategoryFilter');
   const statusF = document.getElementById('payoffStatusFilter')?.value || 'pending';
 
   return allDebtGroups.filter((g) => {
     if (statusF === 'pending' && g.pendingCount === 0) return false;
-    if (bankF !== 'all' && g.account !== bankF) return false;
-    if (catF !== 'all' && g.category !== catF) return false;
+    if (bankF.length > 0 && !bankF.includes(g.account)) return false;
+    if (catF.length > 0 && !catF.includes(g.category)) return false;
     if (
       searchQ &&
       !g.name.toLowerCase().includes(searchQ) &&
@@ -1227,8 +1469,8 @@ function getFilteredTabTransactionsList() {
   const fType = document.getElementById('tabFilterType')?.value || 'all';
   const fMonth = document.getElementById('tabFilterMonth').value;
   const fYear = document.getElementById('tabFilterYear').value;
-  const fBank = document.getElementById('tabFilterBank').value;
-  const fCategory = document.getElementById('tabFilterCategory').value;
+  const fBank = getSelectedFilterValues('tabFilterBank');
+  const fCategory = getSelectedFilterValues('tabFilterCategory');
   const fModality = document.getElementById('tabFilterModality').value;
   const fStatus = document.getElementById('tabFilterStatus')?.value || 'all';
   const fSearch = document.getElementById('tabFilterSearch').value.toLowerCase().trim();
@@ -1238,8 +1480,8 @@ function getFilteredTabTransactionsList() {
       if (fType !== 'all' && t.type !== fType) return false;
       if (fYear !== 'all' && String(t.year) !== String(fYear)) return false;
       if (fMonth !== 'all' && t.month !== fMonth) return false;
-      if (fBank !== 'all' && t.account !== fBank) return false;
-      if (fCategory !== 'all' && t.category !== fCategory) return false;
+      if (fBank.length > 0 && !fBank.includes(t.account)) return false;
+      if (fCategory.length > 0 && !fCategory.includes(t.category)) return false;
       if (fModality === 'installment' && !t.isInstallment) return false;
       if (fModality === 'single' && t.isInstallment) return false;
       if (fStatus === 'open' && Boolean(t.isPaid)) return false;
@@ -1280,8 +1522,11 @@ function renderFilterTabView() {
     fType === 'income' ? 'Receitas' : fType === 'expense' ? 'Despesas' : 'Receitas + Despesas';
   const monthLabel = fMonth === 'all' ? 'Todos os meses' : MONTH_NAMES[fMonth];
   const yearLabel = fYear === 'all' ? 'Todos os anos' : fYear;
-  const bankLabel = fBank === 'all' ? 'Todos os bancos' : fBank;
-  document.getElementById('tabKpiFilterSummary').textContent = `${filtered.length} item(ns) (${typeLabel} • ${monthLabel}/${yearLabel} • ${bankLabel})`;
+  const fBankList = getSelectedFilterValues('tabFilterBank');
+  const fCatList = getSelectedFilterValues('tabFilterCategory');
+  const bankLabel = fBankList.length === 0 ? 'Todos os bancos' : fBankList.join(', ');
+  const catLabel = fCatList.length === 0 ? 'Todas as categorias' : fCatList.join(', ');
+  document.getElementById('tabKpiFilterSummary').textContent = `${filtered.length} item(ns) (${typeLabel} • ${monthLabel}/${yearLabel} • ${bankLabel} • ${catLabel})`;
 
   document.getElementById('tabKpiIncome').textContent = formatBRL(income);
   document.getElementById('tabKpiIncomeSub').textContent = `${incomeCount} entrada(s) no filtro`;
@@ -1570,16 +1815,29 @@ function openEditModal(txId) {
     txAccountEl.value = tx.account;
   }
   document.getElementById('customAccountGroup').classList.add('hidden');
-  document.getElementById('txStartMonth').value = tx.month;
-  document.getElementById('txStartYear').value = tx.year;
 
   if (tx.isInstallment && tx.groupId) {
+    // Ao editar parcelas: exibe escopo e campos com tipo de parcela e quantidade de vezes
     document.getElementById('paymentModeGroup').classList.add('hidden');
-    document.getElementById('installmentFields').classList.add('hidden');
     document.getElementById('editScopeBox').classList.remove('hidden');
     document.getElementById('txEditScope').value = 'all';
+    document.getElementById('installmentFields').classList.remove('hidden');
+
+    const groupItems = transactions
+      .filter((t) => t.groupId === tx.groupId)
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+    const firstItem = groupItems[0] || tx;
+
+    document.getElementById('txStartMonth').value = firstItem.month;
+    document.getElementById('txStartYear').value = firstItem.year;
+    document.getElementById('txInstallments').value = String(tx.totalInstallments || groupItems.length || 2);
+    document.getElementById('txValueMode').value = 'parcel';
+    isInstallmentMode = true;
+    updateInstallmentPreview();
   } else {
     // Permite parcelar uma transação que era à vista
+    document.getElementById('txStartMonth').value = tx.month;
+    document.getElementById('txStartYear').value = tx.year;
     document.getElementById('editScopeBox').classList.add('hidden');
     document.getElementById('paymentModeGroup').classList.remove('hidden');
     document.getElementById('txInstallments').value = '2';
@@ -1627,6 +1885,16 @@ function switchActiveView(viewName) {
 /* Event Listeners */
 document.addEventListener('DOMContentLoaded', () => {
   document.documentElement.setAttribute('data-theme', uiPrefs.theme === 'light' ? 'light' : 'dark');
+  initAllMultiSelects();
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.multiselect-dropdown')) {
+      document.querySelectorAll('.multiselect-dropdown.open').forEach((d) => {
+        d.classList.remove('open');
+        d.querySelector('.multiselect-menu')?.classList.add('hidden');
+      });
+    }
+  });
   renderUserName();
   applyChartColors();
 
@@ -1836,6 +2104,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tabFilterYear').value = 'all';
     document.getElementById('tabFilterBank').value = 'all';
     document.getElementById('tabFilterCategory').value = 'all';
+    multiSelectInstances['tabFilterBank']?.clear();
+    multiSelectInstances['tabFilterCategory']?.clear();
     document.getElementById('tabFilterModality').value = 'all';
     document.getElementById('tabFilterStatus').value = 'all';
     document.getElementById('tabFilterSearch').value = '';
@@ -2220,6 +2490,30 @@ document.addEventListener('DOMContentLoaded', () => {
     updateInstallmentPreview();
   });
 
+  document.getElementById('txEditScope').addEventListener('change', (e) => {
+    const isAll = e.target.value === 'all';
+    const editingId = document.getElementById('editingTxId').value;
+    if (!editingId) return;
+    const targetTx = transactions.find((t) => t.id === Number(editingId));
+    if (!targetTx || !targetTx.groupId) return;
+
+    const installmentFieldsEl = document.getElementById('installmentFields');
+    if (isAll) {
+      installmentFieldsEl.classList.remove('hidden');
+      const groupItems = transactions
+        .filter((t) => t.groupId === targetTx.groupId)
+        .sort((a, b) => a.installmentNumber - b.installmentNumber);
+      const firstItem = groupItems[0] || targetTx;
+      document.getElementById('txStartMonth').value = firstItem.month;
+      document.getElementById('txStartYear').value = firstItem.year;
+      updateInstallmentPreview();
+    } else {
+      installmentFieldsEl.classList.add('hidden');
+      document.getElementById('txStartMonth').value = targetTx.month;
+      document.getElementById('txStartYear').value = targetTx.year;
+    }
+  });
+
   ['txAmount', 'txInstallments', 'txValueMode', 'txStartMonth', 'txStartYear'].forEach((id) => {
     document.getElementById(id).addEventListener('input', updateInstallmentPreview);
     document.getElementById(id).addEventListener('change', updateInstallmentPreview);
@@ -2299,26 +2593,102 @@ document.addEventListener('DOMContentLoaded', () => {
               paidAt: i === 0 && wasPaid ? paidAt : null
             });
           }
-        } else {
+        } else if (targetTx.isInstallment && targetTx.groupId) {
           const editScope = document.getElementById('txEditScope').value;
-          const period = addMonthsToPeriod(startYear, startMonth, 0);
+          if (editScope === 'all') {
+            const count = Math.max(
+              2,
+              parseInt(document.getElementById('txInstallments').value, 10) || targetTx.totalInstallments || 2
+            );
+            const valueMode = document.getElementById('txValueMode').value;
+            const parcelAmount =
+              valueMode === 'total'
+                ? Math.round((rawAmount / count) * 100) / 100
+                : Math.round(rawAmount * 100) / 100;
 
-          if (targetTx.isInstallment && targetTx.groupId && editScope === 'all') {
-            transactions.forEach((t) => {
-              if (t.groupId === targetTx.groupId) {
+            const groupItems = transactions
+              .filter((t) => t.groupId === targetTx.groupId)
+              .sort((a, b) => a.installmentNumber - b.installmentNumber);
+            const currentCount = groupItems.length;
+
+            if (count === currentCount) {
+              groupItems.forEach((t, idx) => {
+                const period = addMonthsToPeriod(startYear, startMonth, idx);
                 t.baseDescription = baseDescription;
-                t.description = `${baseDescription} (${t.installmentNumber}/${t.totalInstallments})`;
-                t.amount = Math.round(rawAmount * 100) / 100;
+                t.description = `${baseDescription} (${idx + 1}/${count})`;
+                t.amount = parcelAmount;
                 t.type = type;
                 t.category = category;
                 t.account = account;
+                t.totalInstallments = count;
+                t.installmentNumber = idx + 1;
+                t.year = period.year;
+                t.month = period.month;
+                t.periodKey = period.periodKey;
+              });
+            } else if (count < currentCount) {
+              const toKeep = groupItems.slice(0, count);
+              const toRemoveIds = new Set(groupItems.slice(count).map((t) => t.id));
+              transactions = transactions.filter((t) => !toRemoveIds.has(t.id));
+
+              toKeep.forEach((t, idx) => {
+                const period = addMonthsToPeriod(startYear, startMonth, idx);
+                t.baseDescription = baseDescription;
+                t.description = `${baseDescription} (${idx + 1}/${count})`;
+                t.amount = parcelAmount;
+                t.type = type;
+                t.category = category;
+                t.account = account;
+                t.totalInstallments = count;
+                t.installmentNumber = idx + 1;
+                t.year = period.year;
+                t.month = period.month;
+                t.periodKey = period.periodKey;
+              });
+            } else {
+              groupItems.forEach((t, idx) => {
+                const period = addMonthsToPeriod(startYear, startMonth, idx);
+                t.baseDescription = baseDescription;
+                t.description = `${baseDescription} (${idx + 1}/${count})`;
+                t.amount = parcelAmount;
+                t.type = type;
+                t.category = category;
+                t.account = account;
+                t.totalInstallments = count;
+                t.installmentNumber = idx + 1;
+                t.year = period.year;
+                t.month = period.month;
+                t.periodKey = period.periodKey;
+              });
+
+              const highestId = transactions.reduce((max, t) => Math.max(max, t.id || 0), Date.now());
+              for (let i = currentCount; i < count; i++) {
+                const period = addMonthsToPeriod(startYear, startMonth, i);
+                transactions.push({
+                  id: highestId + (i - currentCount + 1),
+                  groupId: targetTx.groupId,
+                  description: `${baseDescription} (${i + 1}/${count})`,
+                  baseDescription,
+                  amount: parcelAmount,
+                  type,
+                  category,
+                  account,
+                  year: period.year,
+                  month: period.month,
+                  periodKey: period.periodKey,
+                  isInstallment: true,
+                  installmentNumber: i + 1,
+                  totalInstallments: count,
+                  isPaid: false,
+                  paidAt: null
+                });
               }
-            });
+            }
           } else {
+            // Edição de apenas uma parcela específica
+            const period = addMonthsToPeriod(startYear, startMonth, 0);
             targetTx.baseDescription = baseDescription;
-            targetTx.description = targetTx.isInstallment
-              ? `${baseDescription} (${targetTx.installmentNumber}/${targetTx.totalInstallments})`
-              : baseDescription;
+            targetTx.description = `${baseDescription} (${targetTx.installmentNumber}/${targetTx.totalInstallments})`;
             targetTx.amount = Math.round(rawAmount * 100) / 100;
             targetTx.type = type;
             targetTx.category = category;
@@ -2327,6 +2697,18 @@ document.addEventListener('DOMContentLoaded', () => {
             targetTx.month = period.month;
             targetTx.periodKey = period.periodKey;
           }
+        } else {
+          // Edição normal à vista
+          const period = addMonthsToPeriod(startYear, startMonth, 0);
+          targetTx.baseDescription = baseDescription;
+          targetTx.description = baseDescription;
+          targetTx.amount = Math.round(rawAmount * 100) / 100;
+          targetTx.type = type;
+          targetTx.category = category;
+          targetTx.account = account;
+          targetTx.year = period.year;
+          targetTx.month = period.month;
+          targetTx.periodKey = period.periodKey;
         }
       }
     } else if (!isInstallmentMode) {
