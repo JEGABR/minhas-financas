@@ -1042,6 +1042,172 @@ body {
   color: var(--accent-primary);
 }
 
+.badge-paid {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--accent-primary);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-pending {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+}
+
+.toggle-paid-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.tx-card.clickable-installment {
+  cursor: pointer;
+}
+
+.tx-card.paid-card {
+  opacity: 0.78;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.modal-card-wide {
+  max-width: 680px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inst-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.inst-stat-box {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inst-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.inst-stat-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.inst-stat-box small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.inst-overall-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inst-quick-select-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.inst-calculator-box {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inst-calc-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.84rem;
+}
+
+.inst-calc-amount {
+  font-size: 1.02rem;
+  color: var(--accent-primary);
+}
+
+.inst-calc-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inst-calc-actions select {
+  flex: 1;
+}
+
+.inst-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 290px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.inst-parcel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.inst-parcel-item.is-paid {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.inst-parcel-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inst-parcel-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* Modal & Installments Toggle */
 .modal-backdrop {
   position: fixed;

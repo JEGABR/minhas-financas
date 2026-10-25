@@ -257,11 +257,15 @@
 
         <!-- Parcelamentos Ativos Section -->
         <section class="panel" id="parcelamentos">
-          <div class="panel-header">
+          <div class="panel-header chart-header-wrap">
             <div>
-              <h2>Parcelamentos Ativos no Período</h2>
-              <p class="panel-subtitle">Acompanhamento de parcelas deste mês/ano com barra de progresso e edição</p>
+              <h2>Parcelamentos no Período</h2>
+              <p class="panel-subtitle">Clique em qualquer parcela para ver todas as vezes, simular adiantamento ou quitar tudo</p>
             </div>
+            <label class="toggle-paid-filter">
+              <input type="checkbox" id="chkHidePaidInstallments" />
+              <span>Ocultar parcelas já pagas</span>
+            </label>
           </div>
           <div class="cards-list" id="installmentsSummaryList"></div>
         </section>
@@ -586,6 +590,75 @@
           <button type="submit" id="btnSubmitTx" class="btn-primary">Salvar Transação</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: Detalhes, Adiantamento e Quitação do Parcelamento -->
+  <div class="modal-backdrop hidden" id="installmentDetailModal">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div>
+          <h3 id="instModalTitle">Detalhes do Parcelamento</h3>
+          <span class="panel-subtitle" id="instModalSubtitle">Visão completa de todas as parcelas</span>
+        </div>
+        <button id="btnCloseInstModal" class="btn-icon-sm" type="button">✕</button>
+      </div>
+
+      <!-- Resumo Geral do Parcelamento (Total, Pago, Falta Quitar) -->
+      <div class="inst-summary-grid">
+        <div class="inst-stat-box">
+          <span class="inst-stat-label">Valor Total da Compra</span>
+          <strong class="inst-stat-value" id="instStatTotal">R$ 0,00</strong>
+          <small id="instStatTotalSub">0 parcelas</small>
+        </div>
+        <div class="inst-stat-box">
+          <span class="inst-stat-label">Já Pago / Adiantado</span>
+          <strong class="inst-stat-value positive-text" id="instStatPaid">R$ 0,00</strong>
+          <small id="instStatPaidSub">0 pagas</small>
+        </div>
+        <div class="inst-stat-box">
+          <span class="inst-stat-label">Valor para Quitar Tudo</span>
+          <strong class="inst-stat-value negative-text" id="instStatRemaining">R$ 0,00</strong>
+          <small id="instStatRemainingSub">0 pendentes</small>
+        </div>
+      </div>
+
+      <!-- Barra de progresso real das parcelas pagas -->
+      <div class="inst-overall-progress">
+        <div class="category-row-top">
+          <span id="instProgressText">Progresso de quitação: 0%</span>
+          <div class="inst-quick-select-btns">
+            <button type="button" id="btnSelectAllPending" class="btn-icon-sm">Selecionar todas pendentes (Quitar Tudo)</button>
+            <button type="button" id="btnClearSelection" class="btn-icon-sm">Limpar seleção</button>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill fill-emerald" id="instProgressBar" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Simulador / Calculadora das parcelas marcadas para adiantar -->
+      <div class="inst-calculator-box">
+        <div class="inst-calc-info">
+          <span id="instSelectedCountText">Marque abaixo as parcelas que deseja pagar ou adiantar:</span>
+          <strong id="instSelectedTotalValue" class="inst-calc-amount">Valor selecionado: R$ 0,00</strong>
+        </div>
+        <div class="inst-calc-actions">
+          <select id="instAdvanceMode" class="select-control input-sm" title="Como registrar o pagamento/adiantamento">
+            <option value="mark_paid">Marcar como Paga (mantém no mês original)</option>
+            <option value="move_to_current">Adiantar e puxar cobrança para o mês atual</option>
+            <option value="remove_paid">Quitar e remover parcelas adiantadas da lista</option>
+          </select>
+          <button type="button" id="btnPaySelectedInstallments" class="btn-primary btn-xs">✅ Pagar / Adiantar Selecionadas</button>
+        </div>
+      </div>
+
+      <!-- Lista de todas as parcelas (1/N até N/N) -->
+      <div class="inst-all-list" id="instAllParcelsList"></div>
+
+      <div class="modal-actions">
+        <button type="button" id="btnCloseInstModalBottom" class="btn-subtle">Fechar</button>
+      </div>
     </div>
   </div>
 

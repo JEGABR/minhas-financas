@@ -661,38 +661,87 @@ function renderCategoryBreakdown() {
     .join('');
 }
 
+function getInstallmentGroupStats(tx) {
+  if (!tx.isInstallment) return null;
+  const groupItems = tx.groupId
+    ? transactions.filter((t) => t.groupId === tx.groupId)
+    : [tx];
+
+  const totalCount = groupItems.length || tx.totalInstallments || 1;
+  const paidItems = groupItems.filter((t) => t.isPaid);
+  const pendingItems = groupItems.filter((t) => !t.isPaid);
+  const totalAmount = groupItems.reduce((acc, t) => acc + t.amount, 0);
+  const paidAmount = paidItems.reduce((acc, t) => acc + t.amount, 0);
+  const remainingAmount = pendingItems.reduce((acc, t) => acc + t.amount, 0);
+
+  return {
+    groupItems,
+    totalCount,
+    paidCount: paidItems.length,
+    pendingCount: pendingItems.length,
+    totalAmount,
+    paidAmount,
+    remainingAmount
+  };
+}
+
 function createTransactionCardHTML(tx) {
   const isIncome = tx.type === 'income';
   const bankColor = BANK_COLORS[tx.account] || '#6366f1';
-  const pct = tx.isInstallment
+  const isPaid = Boolean(tx.isPaid);
+
+  let pct = tx.isInstallment
     ? Math.round((tx.installmentNumber / tx.totalInstallments) * 100)
     : 100;
+
+  let groupExtraMeta = '';
+  if (tx.isInstallment) {
+    const stats = getInstallmentGroupStats(tx);
+    if (stats) {
+      groupExtraMeta = `<span class="tx-card-meta">• Pagas: <strong>${stats.paidCount}/${stats.totalCount}</strong> • Falta quitar: <strong>${formatBRL(stats.remainingAmount)}</strong></span>`;
+    }
+  }
 
   const modalityBadge = tx.isInstallment
     ? `<span class="badge-installment">Parcela ${tx.installmentNumber}/${tx.totalInstallments} (${pct}%)</span>`
     : `<span class="badge-avista">À vista</span>`;
 
-  const barColorClass = isIncome
+  const paidStatusBadge = tx.isInstallment
+    ? isPaid
+      ? `<span class="badge-paid">✅ Paga / Adiantada</span>`
+      : `<span class="badge-pending">⏳ Pendente</span>`
+    : '';
+
+  const detailButton = tx.isInstallment
+    ? `<button type="button" class="btn-action" data-detail-id="${tx.id}" title="Ver todas as parcelas, simular adiantamento ou quitar tudo">📋 Parcelas / Adiantar</button>`
+    : '';
+
+  const barColorClass = isPaid
+    ? 'fill-emerald'
+    : isIncome
     ? 'fill-emerald'
     : tx.isInstallment
     ? 'fill-indigo'
     : 'fill-amber';
 
   return `
-    <div class="tx-card">
+    <div class="tx-card ${tx.isInstallment ? 'clickable-installment' : ''} ${isPaid ? 'paid-card' : ''}" ${tx.isInstallment ? `data-card-detail-id="${tx.id}"` : ''}>
       <div class="tx-card-top">
         <div class="tx-card-main">
           <span class="tx-card-title">${tx.description}</span>
           ${modalityBadge}
+          ${paidStatusBadge}
           <span class="badge-category">${tx.category}</span>
           <span class="badge-bank" style="background: ${bankColor}">${tx.account}</span>
           <span class="tx-card-meta">• ${formatPeriodLabel(tx.periodKey)}</span>
+          ${groupExtraMeta}
         </div>
         <div class="tx-card-right">
           <span class="tx-card-amount ${isIncome ? 'positive-text' : 'negative-text'}">
             ${isIncome ? '+' : '-'} ${formatBRL(tx.amount)}
           </span>
           <div class="tx-card-actions">
+            ${detailButton}
             <button type="button" class="btn-action" data-edit-id="${tx.id}" title="Editar conta / transação">✏️ Editar</button>
             <button type="button" class="btn-action delete" data-delete-id="${tx.id}" title="Excluir">🗑️</button>
           </div>
@@ -707,12 +756,14 @@ function createTransactionCardHTML(tx) {
 
 function renderInstallmentsSummary() {
   const container = document.getElementById('installmentsSummaryList');
+  const hidePaid = document.getElementById('chkHidePaidInstallments')?.checked;
+
   const periodList = getMainFilteredTransactions()
-    .filter((t) => t.isInstallment)
+    .filter((t) => t.isInstallment && (!hidePaid || !t.isPaid))
     .sort((a, b) => b.periodKey.localeCompare(a.periodKey) || b.id - a.id);
 
   if (periodList.length === 0) {
-    container.innerHTML = `<p class="empty-state">Nenhuma parcela ativa neste período/filtro (R$ 0,00).</p>`;
+    container.innerHTML = `<p class="empty-state">Nenhuma parcela ativa para mostrar neste período/filtro (R$ 0,00).</p>`;
     return;
   }
 
@@ -827,7 +878,16 @@ function refreshDashboard() {
   renderFilterTabView();
 }
 
+let activeDetailTxId = null;
+
 function handleCardActionClick(e) {
+  const detailBtn = e.target.closest('[data-detail-id]');
+  if (detailBtn) {
+    const id = Number(detailBtn.getAttribute('data-detail-id'));
+    openInstallmentDetailModal(id);
+    return;
+  }
+
   const editBtn = e.target.closest('[data-edit-id]');
   if (editBtn) {
     const id = Number(editBtn.getAttribute('data-edit-id'));
@@ -856,7 +916,98 @@ function handleCardActionClick(e) {
 
     saveTransactions();
     refreshDashboard();
+    return;
   }
+
+  // Clicar no cartão de uma parcela abre a visualização detalhada de todas as parcelas
+  const cardDetail = e.target.closest('[data-card-detail-id]');
+  if (cardDetail) {
+    const id = Number(cardDetail.getAttribute('data-card-detail-id'));
+    openInstallmentDetailModal(id);
+  }
+}
+
+function openInstallmentDetailModal(txId) {
+  const tx = transactions.find((t) => t.id === txId);
+  if (!tx) return;
+
+  activeDetailTxId = tx.id;
+  renderInstallmentDetailModalContent();
+  document.getElementById('installmentDetailModal').classList.remove('hidden');
+}
+
+function renderInstallmentDetailModalContent() {
+  const tx = transactions.find((t) => t.id === activeDetailTxId);
+  if (!tx) {
+    document.getElementById('installmentDetailModal').classList.add('hidden');
+    return;
+  }
+
+  const stats = getInstallmentGroupStats(tx);
+  if (!stats) return;
+
+  const sortedGroup = [...stats.groupItems].sort((a, b) => a.installmentNumber - b.installmentNumber);
+  const titleName = tx.baseDescription || tx.description;
+
+  document.getElementById('instModalTitle').textContent = `Parcelamento: ${titleName}`;
+  document.getElementById('instModalSubtitle').textContent = `Banco/Conta: ${tx.account} • Categoria: ${tx.category}`;
+
+  document.getElementById('instStatTotal').textContent = formatBRL(stats.totalAmount);
+  document.getElementById('instStatTotalSub').textContent = `${stats.totalCount}x de ${formatBRL(tx.amount)}`;
+
+  document.getElementById('instStatPaid').textContent = formatBRL(stats.paidAmount);
+  document.getElementById('instStatPaidSub').textContent = `${stats.paidCount} de ${stats.totalCount} pagas`;
+
+  document.getElementById('instStatRemaining').textContent = formatBRL(stats.remainingAmount);
+  document.getElementById('instStatRemainingSub').textContent = `${stats.pendingCount} pendentes para quitar`;
+
+  const paidPct = stats.totalCount > 0 ? Math.round((stats.paidCount / stats.totalCount) * 100) : 0;
+  document.getElementById('instProgressText').textContent = `Progresso de quitação: ${paidPct}% (${stats.paidCount}/${stats.totalCount} pagas)`;
+  document.getElementById('instProgressBar').style.width = `${paidPct}%`;
+
+  const listContainer = document.getElementById('instAllParcelsList');
+  listContainer.innerHTML = sortedGroup
+    .map((item) => {
+      const isPaid = Boolean(item.isPaid);
+      const statusBadge = isPaid
+        ? `<span class="badge-paid">✅ Paga / Adiantada</span>`
+        : `<span class="badge-pending">⏳ Pendente</span>`;
+
+      return `
+        <div class="inst-parcel-item ${isPaid ? 'is-paid' : ''}">
+          <label class="inst-parcel-left">
+            <input type="checkbox" class="inst-select-chk" data-parcel-id="${item.id}" data-parcel-amount="${item.amount}" ${isPaid ? '' : ''} />
+            <div>
+              <strong>Parcela ${item.installmentNumber}/${item.totalInstallments}</strong>
+              <span class="tx-card-meta">• Vencimento/Mês: ${formatPeriodLabel(item.periodKey)}</span>
+            </div>
+          </label>
+          <div class="inst-parcel-right">
+            ${statusBadge}
+            <strong>${formatBRL(item.amount)}</strong>
+            <button type="button" class="btn-icon-sm" data-toggle-paid-id="${item.id}">
+              ${isPaid ? 'Desmarcar Paga' : 'Marcar Paga'}
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  updateInstallmentCalculator();
+}
+
+function updateInstallmentCalculator() {
+  const checkedBoxes = Array.from(document.querySelectorAll('#instAllParcelsList .inst-select-chk:checked'));
+  const count = checkedBoxes.length;
+  const totalSelected = checkedBoxes.reduce((acc, chk) => acc + (parseFloat(chk.getAttribute('data-parcel-amount')) || 0), 0);
+
+  document.getElementById('instSelectedCountText').textContent =
+    count > 0
+      ? `${count} parcela(s) selecionada(s) para pagar/adiantar:`
+      : 'Marque abaixo as parcelas que deseja pagar ou adiantar:';
+
+  document.getElementById('instSelectedTotalValue').textContent = `Valor selecionado: ${formatBRL(totalSelected)}`;
 }
 
 function openNewModal() {
@@ -1095,6 +1246,89 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('installmentsSummaryList').addEventListener('click', handleCardActionClick);
   document.getElementById('transactionsListContainer').addEventListener('click', handleCardActionClick);
   document.getElementById('tabFilteredListContainer').addEventListener('click', handleCardActionClick);
+
+  // Filtro "Ocultar parcelas já pagas"
+  document.getElementById('chkHidePaidInstallments').addEventListener('change', () => {
+    renderInstallmentsSummary();
+  });
+
+  // Eventos do Modal de Detalhes / Adiantamento / Quitação de Parcelas
+  const instModal = document.getElementById('installmentDetailModal');
+  const closeInstModal = () => instModal.classList.add('hidden');
+
+  document.getElementById('btnCloseInstModal').addEventListener('click', closeInstModal);
+  document.getElementById('btnCloseInstModalBottom').addEventListener('click', closeInstModal);
+
+  document.getElementById('instAllParcelsList').addEventListener('change', (e) => {
+    if (e.target.classList.contains('inst-select-chk')) {
+      updateInstallmentCalculator();
+    }
+  });
+
+  document.getElementById('instAllParcelsList').addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('[data-toggle-paid-id]');
+    if (!toggleBtn) return;
+    const id = Number(toggleBtn.getAttribute('data-toggle-paid-id'));
+    const target = transactions.find((t) => t.id === id);
+    if (!target) return;
+    target.isPaid = !target.isPaid;
+    saveTransactions();
+    refreshDashboard();
+    renderInstallmentDetailModalContent();
+  });
+
+  document.getElementById('btnSelectAllPending').addEventListener('click', () => {
+    document.querySelectorAll('#instAllParcelsList .inst-select-chk').forEach((chk) => {
+      const id = Number(chk.getAttribute('data-parcel-id'));
+      const txItem = transactions.find((t) => t.id === id);
+      chk.checked = txItem ? !txItem.isPaid : false;
+    });
+    updateInstallmentCalculator();
+  });
+
+  document.getElementById('btnClearSelection').addEventListener('click', () => {
+    document.querySelectorAll('#instAllParcelsList .inst-select-chk').forEach((chk) => {
+      chk.checked = false;
+    });
+    updateInstallmentCalculator();
+  });
+
+  document.getElementById('btnPaySelectedInstallments').addEventListener('click', () => {
+    const checkedBoxes = Array.from(document.querySelectorAll('#instAllParcelsList .inst-select-chk:checked'));
+    if (checkedBoxes.length === 0) {
+      alert('Selecione ao menos uma parcela na lista abaixo para pagar ou adiantar.');
+      return;
+    }
+
+    const selectedIds = new Set(checkedBoxes.map((c) => Number(c.getAttribute('data-parcel-id'))));
+    const advanceMode = document.getElementById('instAdvanceMode').value;
+    const currentM = selectedMonth === 'all' ? '10' : selectedMonth;
+    const currentPeriodKey = `${selectedYear}-${currentM}`;
+
+    if (advanceMode === 'remove_paid') {
+      transactions = transactions.filter((t) => !selectedIds.has(t.id));
+      // Caso a parcela ativa tenha sido removida, aponta para outra do mesmo grupo se existir
+      if (selectedIds.has(activeDetailTxId)) {
+        const remaining = transactions.find((t) => t.isInstallment);
+        activeDetailTxId = remaining ? remaining.id : null;
+      }
+    } else {
+      transactions.forEach((t) => {
+        if (selectedIds.has(t.id)) {
+          t.isPaid = true;
+          if (advanceMode === 'move_to_current') {
+            t.year = selectedYear;
+            t.month = currentM;
+            t.periodKey = currentPeriodKey;
+          }
+        }
+      });
+    }
+
+    saveTransactions();
+    refreshDashboard();
+    renderInstallmentDetailModalContent();
+  });
 
   // Exportar e Importar Backup (transferir dados de um PC para outro)
   document.getElementById('btnExportData').addEventListener('click', () => {
