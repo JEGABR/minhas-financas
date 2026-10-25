@@ -267,8 +267,13 @@
               <p class="panel-subtitle">Marque várias dívidas abaixo para pagar juntas ou clique em uma parcela para ver todas as vezes</p>
             </div>
             <div class="parcelamentos-header-actions">
+              <select id="instViewScope" class="select-control input-sm" title="Escolher quais parcelas mostrar aqui">
+                <option value="period">Parcelas deste Período</option>
+                <option value="next_each">Próxima parcela de cada dívida</option>
+                <option value="all_pending">Todas as parcelas de todos os meses</option>
+              </select>
               <button type="button" id="btnGoToPayoffTab" class="btn-subtle btn-highlight-payoff">
-                💳 Central Quitar Dívidas (Todas as Contas)
+                💳 Central Quitar Dívidas
               </button>
               <label class="toggle-paid-filter">
                 <input type="checkbox" id="chkHidePaidInstallments" />
@@ -326,6 +331,7 @@
                 <option value="Lazer">Lazer & Saúde</option>
                 <option value="Educação">Educação</option>
                 <option value="Compras">Compras</option>
+                <option value="Empréstimo">Empréstimo</option>
                 <option value="Outros">Outros</option>
                 <option value="Receita">Receitas</option>
               </select>
@@ -344,7 +350,7 @@
         <section class="kpi-grid">
           <article class="kpi-card">
             <div class="kpi-top">
-              <span class="kpi-label">Contas Parceladas Ativas</span>
+              <span class="kpi-label" id="payoffKpiActiveLabel">Contas Parceladas Ativas</span>
               <span class="kpi-icon kpi-icon-neutral">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
               </span>
@@ -357,7 +363,7 @@
 
           <article class="kpi-card">
             <div class="kpi-top">
-              <span class="kpi-label">Total Já Pago / Adiantado</span>
+              <span class="kpi-label" id="payoffKpiPaidLabel">Total Já Pago / Adiantado</span>
               <span class="kpi-icon kpi-icon-positive">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
               </span>
@@ -370,7 +376,7 @@
 
           <article class="kpi-card">
             <div class="kpi-top">
-              <span class="kpi-label">Falta Quitar (Todas as Dívidas)</span>
+              <span class="kpi-label" id="payoffKpiRemainingLabel">Falta Quitar (Todas as Dívidas)</span>
               <span class="kpi-icon kpi-icon-negative">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </span>
@@ -383,7 +389,7 @@
 
           <article class="kpi-card kpi-card-highlight">
             <div class="kpi-top">
-              <span class="kpi-label">Total Selecionado para Quitar</span>
+              <span class="kpi-label" id="payoffKpiSelectedLabel">Total Selecionado para Quitar</span>
               <span class="kpi-icon kpi-icon-accent">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </span>
@@ -406,6 +412,18 @@
               <input type="search" id="payoffSearchInput" class="input-control" placeholder="Buscar dívida ou banco..." />
               <select id="payoffBankFilter" class="select-control">
                 <option value="all">Todos os bancos</option>
+              </select>
+              <select id="payoffCategoryFilter" class="select-control">
+                <option value="all">Todas as categorias</option>
+                <option value="Alimentação">Alimentação</option>
+                <option value="Moradia">Moradia</option>
+                <option value="Transporte">Transporte</option>
+                <option value="Assinaturas">Assinaturas & Serviços</option>
+                <option value="Lazer">Lazer & Saúde</option>
+                <option value="Educação">Educação</option>
+                <option value="Compras">Compras</option>
+                <option value="Empréstimo">Empréstimo</option>
+                <option value="Outros">Outros</option>
               </select>
               <select id="payoffStatusFilter" class="select-control">
                 <option value="pending">Somente com parcelas pendentes</option>
@@ -506,6 +524,7 @@
                 <option value="Lazer">Lazer & Saúde</option>
                 <option value="Educação">Educação</option>
                 <option value="Compras">Compras</option>
+                <option value="Empréstimo">Empréstimo</option>
                 <option value="Outros">Outros</option>
                 <option value="Receita">Receitas</option>
               </select>
@@ -703,6 +722,7 @@
               <option value="Lazer">Lazer & Saúde</option>
               <option value="Educação">Educação</option>
               <option value="Compras">Compras</option>
+              <option value="Empréstimo">Empréstimo</option>
               <option value="Outros">Outros</option>
               <option value="Receita">Receita</option>
             </select>
