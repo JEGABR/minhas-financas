@@ -728,6 +728,10 @@ function createTransactionCardHTML(tx, selectionContext = '') {
     ? `<button type="button" class="btn-action" data-detail-id="${tx.id}" title="Ver todas as parcelas, simular adiantamento ou quitar tudo">📋 Parcelas / Adiantar</button>`
     : '';
 
+  const quickPayButton = !isIncome
+    ? `<button type="button" class="btn-action" data-quick-toggle-paid-id="${tx.id}" title="${isPaid ? 'Voltar para Em Aberto' : 'Marcar esta despesa como Paga'}">${isPaid ? '↩️ Em aberto' : '✅ Pagar'}</button>`
+    : '';
+
   const barColorClass = isPaid
     ? 'fill-emerald'
     : isIncome
@@ -773,6 +777,7 @@ function createTransactionCardHTML(tx, selectionContext = '') {
             ${isIncome ? '+' : '-'} ${formatBRL(tx.amount)}
           </span>
           <div class="tx-card-actions">
+            ${quickPayButton}
             ${detailButton}
             <button type="button" class="btn-action" data-edit-id="${tx.id}" title="Editar conta / transação">✏️ Editar</button>
             <button type="button" class="btn-action delete" data-delete-id="${tx.id}" title="Excluir">🗑️</button>
@@ -1073,6 +1078,7 @@ function getFilteredTabTransactionsList() {
   const fBank = document.getElementById('tabFilterBank').value;
   const fCategory = document.getElementById('tabFilterCategory').value;
   const fModality = document.getElementById('tabFilterModality').value;
+  const fStatus = document.getElementById('tabFilterStatus')?.value || 'all';
   const fSearch = document.getElementById('tabFilterSearch').value.toLowerCase().trim();
 
   return transactions
@@ -1084,6 +1090,8 @@ function getFilteredTabTransactionsList() {
       if (fCategory !== 'all' && t.category !== fCategory) return false;
       if (fModality === 'installment' && !t.isInstallment) return false;
       if (fModality === 'single' && t.isInstallment) return false;
+      if (fStatus === 'open' && Boolean(t.isPaid)) return false;
+      if (fStatus === 'paid' && !t.isPaid) return false;
       if (
         fSearch &&
         !t.description.toLowerCase().includes(fSearch) &&
@@ -1108,13 +1116,13 @@ function renderFilterTabView() {
 
   const filtered = getFilteredTabTransactionsList();
 
-  // Saldo Acumulado Geral (soma de todas as receitas menos todas as despesas cadastradas)
+  // Saldo Acumulado Geral (soma de todas as receitas menos todas as despesas em aberto)
   const allSummary = calculateSummary(transactions);
   const totalBalEl = document.getElementById('kpiTotalBalance');
   totalBalEl.textContent = formatBRL(allSummary.netSavings);
   totalBalEl.className = `kpi-value ${allSummary.netSavings > 0 ? 'positive-text' : allSummary.netSavings < 0 ? 'negative-text' : ''}`;
 
-  const { income, expenses, netSavings, savingsRate, incomeCount, expenseCount } = calculateSummary(filtered);
+  const { income, expenses, paidExpenses, netSavings, savingsRate, incomeCount, expenseCount, paidExpenseCount } = calculateSummary(filtered);
 
   const typeLabel =
     fType === 'income' ? 'Receitas' : fType === 'expense' ? 'Despesas' : 'Receitas + Despesas';
@@ -1127,7 +1135,10 @@ function renderFilterTabView() {
   document.getElementById('tabKpiIncomeSub').textContent = `${incomeCount} entrada(s) no filtro`;
 
   document.getElementById('tabKpiExpenses').textContent = formatBRL(expenses);
-  document.getElementById('tabKpiExpenseSub').textContent = `${expenseCount} saída(s) no filtro`;
+  document.getElementById('tabKpiExpenseSub').textContent =
+    paidExpenseCount > 0
+      ? `${expenseCount} em aberto (Já pago: ${formatBRL(paidExpenses)})`
+      : `${expenseCount} em aberto no filtro`;
 
   const balEl = document.getElementById('tabKpiBalance');
   balEl.textContent = formatBRL(netSavings);
@@ -1223,6 +1234,18 @@ let activeDetailTxId = null;
 function handleCardActionClick(e) {
   // Evita abrir o modal quando clicou diretamente no checkbox de seleção múltipla
   if (e.target.closest('.tx-select-chk-wrap') || e.target.classList.contains('tx-select-chk')) {
+    return;
+  }
+
+  const quickToggleBtn = e.target.closest('[data-quick-toggle-paid-id]');
+  if (quickToggleBtn) {
+    const id = Number(quickToggleBtn.getAttribute('data-quick-toggle-paid-id'));
+    const target = transactions.find((t) => t.id === id);
+    if (target) {
+      target.isPaid = !target.isPaid;
+      saveTransactions();
+      refreshDashboard();
+    }
     return;
   }
 
@@ -1608,7 +1631,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // EVENTOS: ABA "FILTROS & CONTAS" (Filtro Receita/Despesa + Seleção Múltipla)
   // ==========================================
-  ['tabFilterType', 'tabFilterMonth', 'tabFilterYear', 'tabFilterBank', 'tabFilterCategory', 'tabFilterModality', 'tabFilterSearch'].forEach((id) => {
+  ['tabFilterType', 'tabFilterMonth', 'tabFilterYear', 'tabFilterBank', 'tabFilterCategory', 'tabFilterModality', 'tabFilterStatus', 'tabFilterSearch'].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', renderFilterTabView);
@@ -1622,6 +1645,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tabFilterBank').value = 'all';
     document.getElementById('tabFilterCategory').value = 'all';
     document.getElementById('tabFilterModality').value = 'all';
+    document.getElementById('tabFilterStatus').value = 'all';
     document.getElementById('tabFilterSearch').value = '';
     renderFilterTabView();
   });
