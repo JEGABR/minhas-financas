@@ -63,3 +63,4 @@ $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 & $csc /nologo /target:winexe /win32icon:"app.ico" /out:"MinhasFinancas.exe" "Launcher.cs"
 & $csc /nologo /target:winexe /win32icon:"app.ico" /resource:"index.html,index.html" /resource:"styles.css,styles.css" /resource:"app.js,app.js" /resource:"MinhasFinancas.exe,MinhasFinancas.exe" /resource:"app.ico,app.ico" /out:"Instalador-MinhasFinancas.exe" "Installer.cs"
 ```
+

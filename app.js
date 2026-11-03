@@ -346,10 +346,6 @@ function parseAndExecuteAgentCommand(rawInput) {
       totalInstallments: 1
     });
 
-    selectedYear = period.year;
-    selectedMonth = period.month;
-    document.getElementById('monthSelector').value = selectedMonth;
-
     saveTransactions();
     refreshDashboard();
     showAgentFeedback(
@@ -383,10 +379,6 @@ function parseAndExecuteAgentCommand(rawInput) {
 
     const firstP = addMonthsToPeriod(startYearNum, startMonthNum, 0);
     const lastP = addMonthsToPeriod(startYearNum, startMonthNum, installments - 1);
-
-    selectedYear = firstP.year;
-    selectedMonth = firstP.month;
-    document.getElementById('monthSelector').value = selectedMonth;
 
     saveTransactions();
     refreshDashboard();
@@ -1592,12 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    selectedYear = startYear;
-    selectedMonth = String(startMonth).padStart(2, '0');
-    document.getElementById('monthSelector').value = selectedMonth;
-    document.getElementById('tabFilterMonth').value = selectedMonth;
-    document.getElementById('tabFilterYear').value = String(selectedYear);
-
+    // Mantém o usuário exatamente no mês e ano em que ele já está visualizando
     saveTransactions();
     refreshDashboard();
     closeModal();
