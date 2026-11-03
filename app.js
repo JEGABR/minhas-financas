@@ -2,6 +2,8 @@ const STORAGE_KEY = 'minhas_financas_v2_tx';
 const USER_NAME_KEY = 'minhas_financas_username';
 const CUSTOM_BANKS_KEY = 'minhas_financas_custom_banks';
 const CHART_COLORS_KEY = 'minhas_financas_chart_colors';
+const CURRENT_MONTH_KEY = 'minhas_financas_selected_month';
+const CURRENT_YEAR_KEY = 'minhas_financas_selected_year';
 
 // Remove dados fictícios antigos caso existam
 localStorage.removeItem('finai_transactions');
@@ -52,10 +54,19 @@ let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 let customBanks = JSON.parse(localStorage.getItem(CUSTOM_BANKS_KEY)) || [];
 let userName = localStorage.getItem(USER_NAME_KEY) || 'Gabriel';
 let chartColors = JSON.parse(localStorage.getItem(CHART_COLORS_KEY)) || { ...DEFAULT_CHART_COLORS };
-let selectedMonth = '10';
-let selectedYear = 2026;
+let selectedMonth = localStorage.getItem(CURRENT_MONTH_KEY) || '10';
+let selectedYear = Number(localStorage.getItem(CURRENT_YEAR_KEY)) || 2026;
 let isInstallmentMode = false;
 let lastAgentBatchIds = [];
+let userViewingMonthBeforeEdit = selectedMonth;
+let userViewingYearBeforeEdit = selectedYear;
+
+function setSelectedPeriod(month, year) {
+  selectedMonth = String(month);
+  selectedYear = Number(year);
+  localStorage.setItem(CURRENT_MONTH_KEY, selectedMonth);
+  localStorage.setItem(CURRENT_YEAR_KEY, String(selectedYear));
+}
 
 function applyChartColors() {
   const inc = chartColors.income || DEFAULT_CHART_COLORS.income;
@@ -865,6 +876,10 @@ function updateInstallmentPreview() {
 function refreshDashboard() {
   populateYearSelectors();
   populateBankSelectors();
+  const mSelect = document.getElementById('monthSelector');
+  const ySelect = document.getElementById('yearSelector');
+  if (mSelect) mSelect.value = selectedMonth;
+  if (ySelect) ySelect.value = String(selectedYear);
   renderCashflowChart();
   renderTransactionsList();
   renderFilterTabView();
@@ -1003,6 +1018,9 @@ function updateInstallmentCalculator() {
 }
 
 function openNewModal() {
+  userViewingMonthBeforeEdit = selectedMonth;
+  userViewingYearBeforeEdit = selectedYear;
+
   document.getElementById('editingTxId').value = '';
   document.getElementById('modalTitle').textContent = 'Adicionar Nova Transação';
   document.getElementById('btnSubmitTx').textContent = 'Salvar Transação';
@@ -1021,6 +1039,9 @@ function openNewModal() {
 function openEditModal(txId) {
   const tx = transactions.find((t) => t.id === txId);
   if (!tx) return;
+
+  userViewingMonthBeforeEdit = selectedMonth;
+  userViewingYearBeforeEdit = selectedYear;
 
   populateBankSelectors();
   document.getElementById('editingTxId').value = String(tx.id);
@@ -1190,13 +1211,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearSelect = document.getElementById('yearSelector');
 
   monthSelect.addEventListener('change', (e) => {
-    selectedMonth = e.target.value;
+    setSelectedPeriod(e.target.value, selectedYear);
     document.getElementById('tabFilterMonth').value = selectedMonth;
     refreshDashboard();
   });
 
   yearSelect.addEventListener('change', (e) => {
-    selectedYear = Number(e.target.value);
+    setSelectedPeriod(selectedMonth, Number(e.target.value));
     document.getElementById('tabFilterYear').value = String(selectedYear);
     refreshDashboard();
   });
@@ -1204,8 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnPrevMonth').addEventListener('click', () => {
     const currentM = selectedMonth === 'all' ? 1 : Number(selectedMonth);
     const prev = addMonthsToPeriod(selectedYear, currentM, -1);
-    selectedYear = prev.year;
-    selectedMonth = prev.month;
+    setSelectedPeriod(prev.month, prev.year);
     monthSelect.value = selectedMonth;
     document.getElementById('tabFilterMonth').value = selectedMonth;
     document.getElementById('tabFilterYear').value = String(selectedYear);
@@ -1215,8 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnNextMonth').addEventListener('click', () => {
     const currentM = selectedMonth === 'all' ? 12 : Number(selectedMonth);
     const next = addMonthsToPeriod(selectedYear, currentM, 1);
-    selectedYear = next.year;
-    selectedMonth = next.month;
+    setSelectedPeriod(next.month, next.year);
     monthSelect.value = selectedMonth;
     document.getElementById('tabFilterMonth').value = selectedMonth;
     document.getElementById('tabFilterYear').value = String(selectedYear);
@@ -1226,7 +1245,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cashflowChart').addEventListener('click', (e) => {
     const group = e.target.closest('[data-select-month]');
     if (!group) return;
-    selectedMonth = group.getAttribute('data-select-month');
+    setSelectedPeriod(group.getAttribute('data-select-month'), selectedYear);
     monthSelect.value = selectedMonth;
     refreshDashboard();
   });
@@ -1584,7 +1603,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Mantém o usuário exatamente no mês e ano em que ele já está visualizando
+    // Restaura e garante que o usuário permanece exatamente no mês e ano que estava vendo
+    setSelectedPeriod(userViewingMonthBeforeEdit, userViewingYearBeforeEdit);
     saveTransactions();
     refreshDashboard();
     closeModal();
