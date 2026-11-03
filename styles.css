@@ -1338,3 +1338,52 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 640px) {
+  .main-content {
+    padding: 16px 14px;
+    gap: 16px;
+  }
+  .top-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .period-picker {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .period-picker .select-control {
+    font-size: 0.8rem;
+    padding: 4px 6px;
+  }
+  .kpi-grid,
+  .kpi-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .filter-controls-grid {
+    grid-template-columns: 1fr;
+  }
+  .inst-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .agent-bar-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-agent-submit {
+    width: 100%;
+    justify-content: center;
+  }
+  .inst-calc-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inst-calc-actions button {
+    width: 100%;
+  }
+}

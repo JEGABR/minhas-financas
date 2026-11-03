@@ -1072,6 +1072,13 @@ function openEditModal(txId) {
 
 /* Event Listeners */
 document.addEventListener('DOMContentLoaded', () => {
+  // Registrar Service Worker para PWA (celular / offline)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch((err) => {
+      console.log('ServiceWorker registration failed: ', err);
+    });
+  }
+
   renderUserName();
   applyChartColors();
   document.getElementById('tabFilterYear').value = String(selectedYear);
