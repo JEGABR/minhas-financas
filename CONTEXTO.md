@@ -15,6 +15,7 @@ Aplicação pessoal de controle financeiro (**Minhas Finanças**) criada em **HT
 ## 2. Funcionalidades Implementadas (Histórico da Conversa)
 
 1. **Interface e Layout Personalizados:**
+   - Visual refinado com painéis mais claros, navegação e cartões com hierarquia reforçada, estados de foco acessíveis e layout responsivo para desktop, tablet e celular.
    - Modo Escuro (padrão, com `color-scheme: dark` corrigido nos `<select>`) e Modo Claro alternáveis pelo botão no topo.
    - Nome do usuário editável na barra lateral esquerda (`#btnEditUserName`), atualizando também o avatar e o título de boas-vindas (`localStorage` key: `minhas_financas_username`).
    - Status inicial 100% zerado (`R$ 0,00`), sem dados fictícios, com botão **"Zerar todos os dados"** na barra lateral.
@@ -52,7 +53,8 @@ Aplicação pessoal de controle financeiro (**Minhas Finanças**) criada em **HT
        3. *Quitar e remover parcelas adiantadas da lista*.
 
 5. **🤖 Agente de Lançamento Rápido + Guia de Comandos na Esquerda:**
-   - Barra no topo (`#agentCommandForm`) que interpreta frases naturais em português offline (`analyzeAgentCommand` e `parseAndExecuteAgentCommand`), com **prévia ao vivo (`#agentLivePreview`)** enquanto o usuário digita e botão **"Desfazer lançamento"**.
+   - Barra no topo (`#agentCommandForm`) que interpreta frases em português offline (`analyzeAgentCommand` e `parseAndExecuteAgentCommand`), com prévia ao vivo, normalização de acentos, formatos monetários brasileiros, reconhecimento de bancos/meses e validação de ambiguidades e limites de parcelas.
+   - A prévia informa quando usa padrões (como Nubank ou categoria Compras); comandos ambíguos, conflitantes ou com parcelamento inválido não são lançados. Os campos dinâmicos da prévia e do feedback escapam HTML.
    - Quadro **"🤖 Guia de Comandos"** na barra lateral esquerda com 5 modelos clicáveis (Parcelar Valor Total, Parcelar pelo Valor da Parcela, Gasto À Vista, Receita/Salário e Escolher Mês Inicial).
 
 6. **Backup & Transferência entre PCs:**
@@ -68,4 +70,3 @@ $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 & $csc /nologo /target:winexe /win32icon:"app.ico" /out:"MinhasFinancas.exe" "Launcher.cs"
 & $csc /nologo /target:winexe /win32icon:"app.ico" /resource:"index.html,index.html" /resource:"styles.css,styles.css" /resource:"app.js,app.js" /resource:"MinhasFinancas.exe,MinhasFinancas.exe" /resource:"app.ico,app.ico" /out:"Instalador-MinhasFinancas.exe" "Installer.cs"
 ```
-

@@ -3,6 +3,8 @@
 Aplicação de controle financeiro pessoal desenvolvida em **HTML5, CSS3, JavaScript** e empacotada para **Windows Desktop (C# / .NET)**.
 
 ## Funcionalidades
+- **Interface renovada:** tema escuro/claro refinado, cartões com hierarquia visual mais clara e layout responsivo para desktop, tablet e celular.
+- **Agente de lançamentos mais preciso:** entende valores em formato brasileiro, meses e anos, parcelas e aliases de bancos; avisa sobre padrões assumidos e impede lançamentos ambíguos ou inválidos.
 - **Resumo financeiro (KPIs):** Saldo Acumulado Geral, Receitas no Período, Despesas no Período e Balanço/Taxa de Economia.
 - **Filtro completo de período:** Todos os meses (Janeiro a Dezembro) e navegação automática entre anos.
 - **Lançamentos à vista e parcelados:** Divisão automática de parcelas pelos meses seguintes, virando de ano automaticamente (suporta 12x, 24x, etc.).
@@ -14,4 +16,3 @@ Aplicação de controle financeiro pessoal desenvolvida em **HTML5, CSS3, JavaSc
 - **Versão Instalador (Windows):** Execute `Instalador-MinhasFinancas.exe` para instalar no PC e criar atalhos na Área de Trabalho e no Menu Iniciar.
 - **Versão Portátil (Windows):** Execute `MinhasFinancas.exe`.
 - **Versão Navegador:** Abra `index.html` diretamente em qualquer navegador moderno.
-

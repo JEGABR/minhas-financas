@@ -1,4 +1,4 @@
-﻿const STORAGE_KEY = 'minhas_financas_v2_tx';
+const STORAGE_KEY = 'minhas_financas_v2_tx';
 const USER_NAME_KEY = 'minhas_financas_username';
 const CUSTOM_BANKS_KEY = 'minhas_financas_custom_banks';
 const CHART_COLORS_KEY = 'minhas_financas_chart_colors';
@@ -357,13 +357,50 @@ function saveChartColors() {
 /**
  * Analisa o comando digitado no Agente e retorna os campos interpretados
  */
+function normalizeAgentText(value) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function escapeAgentHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    const entities = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    };
+    return entities[char];
+  });
+}
+
+function maskAgentRange(value, start, length) {
+  return value.slice(0, start) + ' '.repeat(length) + value.slice(start + length);
+}
+
+function parseAgentMoney(value) {
+  let numeric = value.replace(/^r\$\s*/i, '').replace(/\s*(?:mil|k)$/i, '');
+  const multiplier = /(?:mil|k)$/i.test(value.trim()) ? 1000 : 1;
+  numeric = numeric.replace(/\s/g, '');
+
+  if (numeric.includes(',') && numeric.includes('.')) {
+    numeric = numeric.replace(/\./g, '').replace(',', '.');
+  } else if (numeric.includes(',')) {
+    numeric = numeric.replace(',', '.');
+  } else if (/^\d{1,3}(?:\.\d{3})+$/.test(numeric)) {
+    numeric = numeric.replace(/\./g, '');
+  }
+
+  return Math.round((Number(numeric) * multiplier + Number.EPSILON) * 100) / 100;
+}
+
 function analyzeAgentCommand(rawInput) {
   const text = rawInput.trim();
   if (!text) return null;
 
-  const lower = text.toLowerCase();
-
-  // 1. Detectar mês e ano mencionados na frase (ex: "em novembro", "em janeiro de 2027")
+  const lower = normalizeAgentText(text);
+  const errors = [];
+  const warnings = [];
   const monthKeywords = [
     { num: 1, words: ['janeiro', 'jan'] },
     { num: 2, words: ['fevereiro', 'fev'] },
@@ -381,72 +418,64 @@ function analyzeAgentCommand(rawInput) {
 
   let startMonthNum = selectedMonth === 'all' ? 10 : parseInt(selectedMonth, 10);
   let startYearNum = selectedYear;
-  let matchedMonthWords = [];
+  const removedRanges = [];
+  const numericDateMatch = lower.match(/\b(0?[1-9]|1[0-2])\/(20\d{2})\b|\b(20\d{2})-(0?[1-9]|1[0-2])\b/);
 
-  for (const mItem of monthKeywords) {
-    for (const w of mItem.words) {
-      const mRgx = new RegExp(`\\b(?:em\\s+|a\\s+partir\\s+de\\s+|para\\s+)?(${w})(?:\\s+de\\s+(20\\d{2})|\\/(20\\d{2}))?\\b`, 'i');
-      const match = text.match(mRgx);
-      if (match) {
-        startMonthNum = mItem.num;
-        if (match[2] || match[3]) {
-          startYearNum = parseInt(match[2] || match[3], 10);
-        }
-        matchedMonthWords.push(match[0]);
+  if (numericDateMatch) {
+    startMonthNum = parseInt(numericDateMatch[1] || numericDateMatch[4], 10);
+    startYearNum = parseInt(numericDateMatch[2] || numericDateMatch[3], 10);
+    removedRanges.push({ start: numericDateMatch.index, length: numericDateMatch[0].length });
+  } else {
+    for (const month of monthKeywords) {
+      const aliases = [...month.words].sort((a, b) => b.length - a.length);
+      for (const alias of aliases) {
+        const match = lower.match(
+          new RegExp(`\\b(?:a partir de\\s+|em\\s+|para\\s+)?(${alias})(?:\\s+(?:de\\s+)?(20\\d{2})|\\/(20\\d{2}))?\\b`, 'i')
+        );
+        if (!match) continue;
+
+        startMonthNum = month.num;
+        if (match[2] || match[3]) startYearNum = parseInt(match[2] || match[3], 10);
+        removedRanges.push({ start: match.index, length: match[0].length });
         break;
       }
+      if (removedRanges.length) break;
     }
-    if (matchedMonthWords.length > 0) break;
   }
 
   let workingText = text;
-  matchedMonthWords.forEach((mw) => {
-    workingText = workingText.replace(mw, ' ');
-  });
+  for (const range of [...removedRanges].sort((a, b) => b.start - a.start)) {
+    workingText = maskAgentRange(workingText, range.start, range.length);
+  }
 
-  // 2. Detectar número de parcelas (ex: "em 12 vezes", "12x", "12 parcelas", "parcelado em 10")
+  const plainAmountPattern = '(?:\\d{1,3}(?:[.\\s]\\d{3})+(?:,\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)(?:\\s*(?:mil|k))?';
+  const amountPattern = `(?:r\\$\\s*)?${plainAmountPattern}`;
+  const installmentMatch = lower.match(
+    new RegExp(`\\b(?:(?:parcelad[oa]\\s+(?:em|de)|dividid[oa]\\s+em|em)\\s+)?(\\d{1,3})\\s*(vezes|x|parcelas?)\\b(?:\\s+de\\s+(${amountPattern}))?`, 'i')
+  ) || lower.match(/\bparcelad[oa]\s+em\s+(\d{1,3})\b/i);
+
   let installments = 1;
   let isParcelado = false;
-  let matchedInstallmentStr = '';
-
-  const parcelRegexes = [
-    /(?:parcelad[oa]\s+em\s+|dividid[oa]\s+em\s+|em\s+)?(\d{1,3})\s*(?:vezes|x|parcelas?)\b/i,
-    /\bparcelad[oa]\s+em\s+(\d{1,3})\b/i
-  ];
-
-  for (const rgx of parcelRegexes) {
-    const m = workingText.match(rgx);
-    if (m) {
-      installments = Math.max(2, parseInt(m[1], 10));
-      isParcelado = true;
-      matchedInstallmentStr = m[0];
-      break;
+  let isParcelValueMode = false;
+  let installmentAmount = null;
+  if (installmentMatch) {
+    installments = parseInt(installmentMatch[1], 10);
+    isParcelado = installments > 1;
+    if (installmentMatch[3]) {
+      installmentAmount = parseAgentMoney(installmentMatch[3]);
+      isParcelValueMode = true;
+    }
+    removedRanges.push({ start: installmentMatch.index, length: installmentMatch[0].length });
+    if (installments < 1 || installments > 120) {
+      errors.push('O número de parcelas deve estar entre 1 e 120.');
     }
   }
 
-  const isParcelValueMode = /(?:\d{1,3})\s*(?:vezes|x|parcelas?)\s+de\s+(?:r\$\s*)?\d/i.test(workingText);
-
-  let textWithoutInstallments = matchedInstallmentStr
-    ? workingText.replace(matchedInstallmentStr, ' ')
-    : workingText;
-
-  // 3. Detectar valor monetário
-  let amount = 0;
-  let matchedAmountStr = '';
-  const amountMatch = textWithoutInstallments.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i);
-
-  if (amountMatch) {
-    matchedAmountStr = amountMatch[0];
-    let numStr = amountMatch[1];
-    if (numStr.includes('.') && numStr.includes(',')) {
-      numStr = numStr.replace(/\./g, '').replace(',', '.');
-    } else if (numStr.includes(',')) {
-      numStr = numStr.replace(',', '.');
-    }
-    amount = parseFloat(numStr) || 0;
+  let textWithoutMetadata = text;
+  for (const range of [...removedRanges].sort((a, b) => b.start - a.start)) {
+    textWithoutMetadata = maskAgentRange(textWithoutMetadata, range.start, range.length);
   }
 
-  // 4. Detectar Banco / Conta (incluindo bancos personalizados)
   const bankAliases = [
     { keywords: ['nubank', 'nu'], bank: 'Nubank' },
     { keywords: ['itaú', 'itau'], bank: 'Itaú' },
@@ -468,53 +497,120 @@ function analyzeAgentCommand(rawInput) {
   ];
 
   customBanks.forEach((cb) => {
-    bankAliases.unshift({ keywords: [cb.toLowerCase()], bank: cb });
+    bankAliases.unshift({ keywords: [cb], bank: cb });
   });
+  bankAliases.forEach((item) => {
+    item.normalizedKeywords = item.keywords.map(normalizeAgentText);
+  });
+  bankAliases.sort((a, b) => Math.max(...b.normalizedKeywords.map((word) => word.length)) - Math.max(...a.normalizedKeywords.map((word) => word.length)));
 
   let detectedBank = 'Nubank';
+  const matchedBanks = new Set();
   for (const item of bankAliases) {
-    const found = item.keywords.some((kw) => new RegExp(`\\b${kw}\\b`, 'i').test(lower));
-    if (found) {
-      detectedBank = item.bank;
-      break;
+    for (const keyword of item.normalizedKeywords) {
+      const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      const match = lower.match(new RegExp(`\\b${escapedKeyword}\\b`, 'i'));
+      if (match) {
+        matchedBanks.add(item.bank);
+        removedRanges.push({ start: match.index, length: match[0].length });
+        break;
+      }
     }
   }
+  if (matchedBanks.size > 1) {
+    errors.push(`Encontrei mais de um banco (${Array.from(matchedBanks).join(', ')}). Informe apenas um.`);
+  } else if (matchedBanks.size === 1) {
+    detectedBank = Array.from(matchedBanks)[0];
+  } else {
+    warnings.push('Nenhum banco identificado; será usado Nubank como padrão.');
+  }
 
-  // 5. Detectar Tipo e Categoria
-  const isIncome = /\b(recebi|sal[áa]rio|ganhei|receita|entrada|freelance|rendimento)\b/i.test(lower);
+  let textWithoutBanks = text;
+  for (const range of [...removedRanges].sort((a, b) => b.start - a.start)) {
+    textWithoutBanks = maskAgentRange(textWithoutBanks, range.start, range.length);
+  }
+
+  const numericPattern = new RegExp(amountPattern, 'gi');
+  const amountCandidates = [];
+  let amountMatch;
+  while ((amountMatch = numericPattern.exec(normalizeAgentText(textWithoutBanks))) !== null) {
+    const rawAmount = amountMatch[0];
+    amountCandidates.push({
+      start: amountMatch.index,
+      length: rawAmount.length,
+      raw: rawAmount,
+      value: parseAgentMoney(rawAmount),
+      hasCurrency: /^\s*r\$/i.test(rawAmount)
+    });
+  }
+
+  const explicitAmounts = amountCandidates.filter((candidate) => candidate.hasCurrency);
+  let selectedAmount = null;
+  if (explicitAmounts.length > 1) {
+    errors.push('Encontrei mais de um valor com R$. Informe apenas o valor que deseja lançar.');
+  } else if (explicitAmounts.length === 1) {
+    selectedAmount = explicitAmounts[0];
+  } else if (amountCandidates.length > 1) {
+    errors.push('Encontrei mais de um número que pode ser um valor. Escreva o valor desejado com R$ para evitar erro.');
+  } else if (amountCandidates.length === 1) {
+    selectedAmount = amountCandidates[0];
+  }
+
+  let amount = selectedAmount ? selectedAmount.value : installmentAmount || 0;
+  if (selectedAmount && installmentAmount !== null && isParcelado) {
+    const expectedTotal = Math.round(installmentAmount * installments * 100) / 100;
+    if (Math.abs(selectedAmount.value - expectedTotal) > 0.01) {
+      errors.push('O valor total não corresponde à quantidade e ao valor das parcelas informados.');
+    }
+    isParcelValueMode = false;
+  } else if (selectedAmount && isParcelado) {
+    isParcelValueMode = false;
+  }
+  if (selectedAmount) {
+    textWithoutBanks = maskAgentRange(textWithoutBanks, selectedAmount.start, selectedAmount.length);
+  }
+  if (amount <= 0 && !errors.length) {
+    warnings.push('Informe um valor maior que zero para concluir o lançamento.');
+  }
+
+  const isIncome = /\b(recebi|receber|salario|ganhei|ganhar|receita|entrada|freelance|rendimento|vendi|venda)\b/i.test(lower);
+  const isExpenseVerb = /\b(paguei|pagar|gastei|gastar|comprei|comprar|despesa|debito|debitei)\b/i.test(lower);
+  if (isIncome && isExpenseVerb) {
+    errors.push('O comando mistura uma entrada e uma despesa. Descreva apenas um tipo de lançamento.');
+  }
   const type = isIncome ? 'income' : 'expense';
   let category = 'Compras';
 
   if (isIncome) {
     category = 'Receita';
-  } else if (/\b(mercado|supermercado|ifood|restaurante|lanche|alimenta[çc][ãa]o|padaria|feira|comida)\b/i.test(lower)) {
+  } else if (/\b(mercado|supermercado|ifood|restaurante|lanche|alimentacao|padaria|feira|comida)\b/i.test(lower)) {
     category = 'Alimentação';
-  } else if (/\b(aluguel|condom[íi]nio|luz|energia|[áa]gua|internet|moradia|casa|g[áa]s|iptu)\b/i.test(lower)) {
+  } else if (/\b(aluguel|condominio|luz|energia|agua|internet|moradia|casa|gas|iptu)\b/i.test(lower)) {
     category = 'Moradia';
-  } else if (/\b(uber|99|gasolina|combust[íi]vel|transporte|[ôo]nibus|metr[ôo]|carro|ipva|oficina)\b/i.test(lower)) {
+  } else if (/\b(uber|99|gasolina|combustivel|transporte|onibus|metro|carro|ipva|oficina)\b/i.test(lower)) {
     category = 'Transporte';
   } else if (/\b(netflix|spotify|assinatura|mensalidade|cloud|streaming|plano)\b/i.test(lower)) {
     category = 'Assinaturas';
-  } else if (/\b(academia|farm[áa]cia|m[ée]dico|sa[úu]de|lazer|cinema|viagem|jogo)\b/i.test(lower)) {
+  } else if (/\b(academia|farmacia|medico|saude|lazer|cinema|viagem|jogo)\b/i.test(lower)) {
     category = 'Lazer';
-  } else if (/\b(curso|faculdade|escola|livro|educa[çc][ãa]o)\b/i.test(lower)) {
+  } else if (/\b(curso|faculdade|escola|livro|educacao)\b/i.test(lower)) {
     category = 'Educação';
-  } else if (/\b(empr[ée]stimo|consignado|financiamento|cr[ée]dito\s+pessoal)\b/i.test(lower)) {
+  } else if (/\b(emprestimo|consignado|financiamento|credito\s+pessoal)\b/i.test(lower)) {
     category = 'Empréstimo';
+  } else if (/\b(compra|compras|loja|roupa|vestuario|eletronico|presente|acessorio)\b/i.test(lower)) {
+    category = 'Compras';
+  } else if (!isIncome) {
+    warnings.push('Categoria não identificada; será usada a categoria Compras.');
   }
 
-  // 6. Extrair a Descrição limpa
-  let cleanDesc = textWithoutInstallments
-    .replace(matchedAmountStr, ' ')
-    .replace(/\b(coloque|coloca|adicione|adiciona|lan[çc]e|lan[çc]a|registre|registra|comprei|paguei|recebi|essa|esse|esta|este|uma|um|d[íi]vida|conta|gasto|despesa|compra|parcelad[oa]|dividid[oa]|avista|[àa]\s*vista|no\s+valor\s+de|valor\s+de|por|reais|real|r\$|no\s+banco|na\s+conta|no\s+cart[ãa]o|no|na|em|de|do|da|vezes|parcelas?)\b/gi, ' ');
-
-  bankAliases.forEach((b) => {
-    b.keywords.forEach((kw) => {
-      cleanDesc = cleanDesc.replace(new RegExp(`\\b${kw}\\b`, 'gi'), ' ');
-    });
-  });
-
-  cleanDesc = cleanDesc.replace(/\s+/g, ' ').trim();
+  let cleanDescription = textWithoutBanks;
+  if (selectedAmount) {
+    cleanDescription = maskAgentRange(cleanDescription, selectedAmount.start, selectedAmount.length);
+  }
+  let cleanDesc = cleanDescription.replace(/[àa]\s+vista/gi, ' ').replace(
+    /\b(coloque|coloca|adicione|adiciona|lance|lanca|registre|registra|comprei|comprar|paguei|pagar|gastei|gastar|recebi|receber|ganhei|ganhar|vendi|essa|esse|esta|este|uma|um|divida|conta|gasto|despesa|compra|parcelada|parcelado|dividida|dividido|avista|[àa]\s*vista|no\s+valor\s+de|valor\s+de|por|reais|real|r\$|no\s+banco|na\s+conta|no\s+cart[ãa]o|no|na|em|de|do|da|vezes|parcelas?)\b/gi,
+    ' '
+  ).replace(/\s+/g, ' ').trim();
   if (!cleanDesc) {
     cleanDesc = isIncome ? 'Receita' : isParcelado ? 'Dívida Parcelada' : 'Despesa';
   } else {
@@ -543,7 +639,9 @@ function analyzeAgentCommand(rawInput) {
     type,
     category,
     startMonthNum,
-    startYearNum
+    startYearNum,
+    errors,
+    warnings
   };
 }
 
@@ -554,9 +652,13 @@ function updateAgentLivePreview() {
 
   if (!parsed) {
     previewEl.classList.add('hidden');
+    document.getElementById('agentCommandInput').removeAttribute('aria-invalid');
     return;
   }
 
+  const escapedDescription = escapeAgentHtml(parsed.cleanDesc);
+  const escapedBank = escapeAgentHtml(parsed.detectedBank);
+  const escapedCategory = escapeAgentHtml(parsed.category);
   const firstP = addMonthsToPeriod(parsed.startYearNum, parsed.startMonthNum, 0);
   const lastP = addMonthsToPeriod(parsed.startYearNum, parsed.startMonthNum, parsed.installments - 1);
 
@@ -564,13 +666,21 @@ function updateAgentLivePreview() {
     ? `Parcelado em <strong>${parsed.installments}x de ${formatBRL(parsed.parcelAmount)}</strong> (Total: ${formatBRL(parsed.totalAmount)}) • ${formatPeriodLabel(firstP.periodKey)} a ${formatPeriodLabel(lastP.periodKey)}`
     : `À vista: <strong>${formatBRL(parsed.amount)}</strong> • ${formatPeriodLabel(firstP.periodKey)}`;
 
-  previewEl.innerHTML = `🔎 <strong>Entendido pelo Agente:</strong> Item: <strong>"${parsed.cleanDesc}"</strong> | ${modalityText} | Banco: <strong>${parsed.detectedBank}</strong> | Categoria: <strong>${parsed.category}</strong>`;
+  const errorsHtml = parsed.errors.map((error) => `<div>⚠️ ${escapeAgentHtml(error)}</div>`).join('');
+  const warningsHtml = parsed.warnings.map((warning) => `<div>ℹ️ ${escapeAgentHtml(warning)}</div>`).join('');
+  previewEl.innerHTML = `${parsed.errors.length ? errorsHtml : `🔎 <strong>Entendido pelo Agente:</strong> Item: <strong>"${escapedDescription}"</strong> | ${modalityText} | Banco: <strong>${escapedBank}</strong> | Categoria: <strong>${escapedCategory}</strong>`}${warningsHtml}`;
   previewEl.classList.remove('hidden');
+  previewEl.classList.toggle('has-error', parsed.errors.length > 0);
+  document.getElementById('agentCommandInput').toggleAttribute('aria-invalid', parsed.errors.length > 0);
 }
 
 function parseAndExecuteAgentCommand(rawInput) {
   const parsed = analyzeAgentCommand(rawInput);
   if (!parsed) return;
+  if (parsed.errors.length) {
+    showAgentFeedback(`⚠️ Não lancei: ${parsed.errors.map(escapeAgentHtml).join(' ')}`, false);
+    return false;
+  }
 
   const {
     cleanDesc,
@@ -601,10 +711,10 @@ function parseAndExecuteAgentCommand(rawInput) {
     }
     setTimeout(() => document.getElementById('txAmount').focus(), 50);
     showAgentFeedback(
-      `🤖 Preparei o lançamento <strong>"${cleanDesc}"</strong> ${isParcelado ? `parcelado em <strong>${installments}x</strong>` : 'à vista'} (${detectedBank}). Digite apenas o valor em R$ para confirmar!`,
+      `🤖 Preparei o lançamento <strong>"${escapeAgentHtml(cleanDesc)}"</strong> ${isParcelado ? `parcelado em <strong>${installments}x</strong>` : 'à vista'} (${escapeAgentHtml(detectedBank)}). Digite apenas o valor em R$ para confirmar!`,
       false
     );
-    return;
+    return true;
   }
 
   lastAgentBatchIds = [];
@@ -632,7 +742,7 @@ function parseAndExecuteAgentCommand(rawInput) {
     saveTransactions();
     refreshDashboard();
     showAgentFeedback(
-      `🤖 <strong>Agente:</strong> Lancei <strong>"${cleanDesc}"</strong> à vista no valor de <strong>${formatBRL(parcelAmount)}</strong> (${detectedBank} • ${category}) em ${formatPeriodLabel(period.periodKey)}.`,
+      `🤖 <strong>Agente:</strong> Lancei <strong>"${escapeAgentHtml(cleanDesc)}"</strong> à vista no valor de <strong>${formatBRL(parcelAmount)}</strong> (${escapeAgentHtml(detectedBank)} • ${escapeAgentHtml(category)}) em ${formatPeriodLabel(period.periodKey)}.`,
       true
     );
   } else {
@@ -666,10 +776,11 @@ function parseAndExecuteAgentCommand(rawInput) {
     saveTransactions();
     refreshDashboard();
     showAgentFeedback(
-      `🤖 <strong>Agente:</strong> Lancei <strong>"${cleanDesc}"</strong> parcelado em <strong>${installments}x de ${formatBRL(parcelAmount)}</strong> (Total: ${formatBRL(totalAmount)}) no <strong>${detectedBank}</strong> — de ${formatPeriodLabel(firstP.periodKey)} até ${formatPeriodLabel(lastP.periodKey)}!`,
+      `🤖 <strong>Agente:</strong> Lancei <strong>"${escapeAgentHtml(cleanDesc)}"</strong> parcelado em <strong>${installments}x de ${formatBRL(parcelAmount)}</strong> (Total: ${formatBRL(totalAmount)}) no <strong>${escapeAgentHtml(detectedBank)}</strong> — de ${formatPeriodLabel(firstP.periodKey)} até ${formatPeriodLabel(lastP.periodKey)}!`,
       true
     );
   }
+  return true;
 }
 
 function showAgentFeedback(htmlText, canUndo) {
@@ -2167,9 +2278,12 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const cmd = agentInput.value.trim();
     if (!cmd) return;
-    parseAndExecuteAgentCommand(cmd);
-    agentInput.value = '';
-    document.getElementById('agentLivePreview').classList.add('hidden');
+    const executed = parseAndExecuteAgentCommand(cmd);
+    if (executed !== false) {
+      agentInput.value = '';
+      document.getElementById('agentLivePreview').classList.add('hidden');
+      agentInput.removeAttribute('aria-invalid');
+    }
   });
 
   // Clicar num item do Guia de Comandos na barra lateral preenche o Agente
