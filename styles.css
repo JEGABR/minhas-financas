@@ -112,10 +112,44 @@ body {
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-color);
   border-radius: 14px;
-  padding: 13px;
+  padding: 11px 13px;
   display: flex;
   flex-direction: column;
   gap: 9px;
+  transition: border-color 0.2s ease;
+}
+
+.sidebar-guide-card[open] {
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.guide-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0 !important;
+  user-select: none;
+}
+
+.guide-summary::-webkit-details-marker {
+  display: none;
+}
+
+.guide-chevron {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.sidebar-guide-card[open] .guide-chevron {
+  transform: rotate(180deg);
+  color: var(--accent-primary);
+}
+
+.sidebar-guide-card[open] .guide-intro {
+  margin-top: 8px;
 }
 
 .guide-intro {
@@ -737,16 +771,29 @@ body {
   opacity: 0.75;
 }
 
+.kpi-grid-3 .kpi-card:nth-child(1) {
+  background: radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.14), transparent 55%), var(--bg-surface);
+}
+
 .kpi-grid-3 .kpi-card:nth-child(1)::before {
   background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+}
+
+.kpi-grid-3 .kpi-card:nth-child(2) {
+  background: radial-gradient(circle at 100% 0%, rgba(244, 63, 94, 0.14), transparent 55%), var(--bg-surface);
 }
 
 .kpi-grid-3 .kpi-card:nth-child(2)::before {
   background: linear-gradient(90deg, transparent, var(--danger), transparent);
 }
 
+.kpi-grid-3 .kpi-card:nth-child(3) {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.16) 0%, rgba(16, 185, 129, 0.10) 100%), var(--bg-surface);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
 .kpi-grid-3 .kpi-card:nth-child(3)::before {
-  background: linear-gradient(90deg, transparent, var(--accent-amber), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent-indigo), var(--accent-amber), transparent);
 }
 
 .kpi-card:hover {
@@ -937,13 +984,21 @@ body {
 }
 
 .cashflow-chart-container {
-  height: 220px;
+  height: 224px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
-  padding-top: 16px;
+  padding: 16px 6px 0;
   border-bottom: 1px solid var(--border-color);
+  background-image: repeating-linear-gradient(
+    to top,
+    transparent,
+    transparent 42px,
+    rgba(148, 163, 184, 0.08) 42px,
+    rgba(148, 163, 184, 0.08) 43px
+  );
+  border-radius: 8px 8px 0 0;
 }
 
 .bar-group {
@@ -1139,21 +1194,23 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 0.82rem;
-  padding: 5px 8px;
-  border-radius: 8px;
-  transition: all 0.15s;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 99px;
+  transition: all 0.18s ease;
 }
 
 .btn-action:hover {
   color: var(--text-primary);
   border-color: var(--accent-indigo);
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .btn-action.delete:hover {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(244, 63, 94, 0.1);
+  background: rgba(244, 63, 94, 0.12);
 }
 
 .empty-state {
@@ -1175,9 +1232,9 @@ body {
 
 .badge-category {
   display: inline-block;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 99px;
-  font-size: 0.74rem;
+  font-size: 0.73rem;
   font-weight: 500;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
@@ -1186,38 +1243,40 @@ body {
 
 .badge-bank {
   display: inline-block;
-  padding: 3px 9px;
-  border-radius: 6px;
-  font-size: 0.74rem;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.73rem;
   font-weight: 600;
   color: #fff;
 }
 
 .badge-installment {
   display: inline-block;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 0.74rem;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.73rem;
   font-weight: 600;
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--accent-indigo);
+  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: #818cf8;
 }
 
 .badge-avista {
   display: inline-block;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 0.74rem;
-  font-weight: 500;
-  background: rgba(16, 185, 129, 0.12);
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.24);
   color: var(--accent-primary);
 }
 
 .badge-paid {
   display: inline-block;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 0.74rem;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.73rem;
   font-weight: 700;
   background: rgba(16, 185, 129, 0.2);
   color: var(--accent-primary);

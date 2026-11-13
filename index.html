@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=3.0" />
+  <link rel="stylesheet" href="styles.css?v=3.1" />
 </head>
 <body>
   <div class="app-layout">
@@ -49,11 +49,12 @@
         </a>
       </nav>
 
-      <!-- Guia de Comandos do Agente na Esquerda -->
-      <div class="sidebar-guide-card">
-        <div class="sidebar-card-header">
+      <!-- Guia de Comandos do Agente (retrátil para manter a barra lateral limpa) -->
+      <details class="sidebar-guide-card">
+        <summary class="sidebar-card-header guide-summary">
           <span>🤖 Guia de Comandos</span>
-        </div>
+          <span class="guide-chevron">▾</span>
+        </summary>
         <p class="guide-intro">Clique em um modelo abaixo para preencher o Agente:</p>
 
         <div class="guide-list">
@@ -87,7 +88,7 @@
             <small>Ex: Notebook 4800 em 12x no Inter em novembro</small>
           </button>
         </div>
-      </div>
+      </details>
 
       <div class="sidebar-card">
         <div class="sidebar-card-header">
